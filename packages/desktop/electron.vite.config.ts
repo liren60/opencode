@@ -2,6 +2,7 @@ import { defineConfig } from "electron-vite"
 import type { Plugin } from "vite"
 import { pickerPlugin } from "./scripts/picker"
 import { nodePtyPackage } from "./scripts/utils"
+import { readFile } from "node:fs/promises"
 
 function resolveChannel() {
   const raw = process.env.OPENCODE_CHANNEL
@@ -62,6 +63,7 @@ export default defineConfig(({ command }) => {
       define: {
         // Local renderer/server mode still uses the dev application identity and updater policy.
         "import.meta.env.OPENCODE_CHANNEL": JSON.stringify(channel === "local" ? "dev" : channel),
+        "import.meta.env.RENICODE": JSON.stringify(process.env.RENICODE_BUILD === "1"),
       },
       build: {
         minify: command === "build",
@@ -121,13 +123,42 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         bundledDev: true,
       },
       define: {
+        "import.meta.env.VITE_RENICODE": JSON.stringify(process.env.RENICODE_BUILD === "1" ? "1" : "0"),
         "import.meta.env.OPENCODE_VERSION": JSON.stringify(process.env.OPENCODE_VERSION),
         "import.meta.env.VITE_OPENCODE_CHANNEL": JSON.stringify(channel),
         "import.meta.env.OPENCODE_TEST_ONBOARDING": JSON.stringify(
           command === "serve" && process.env.OPENCODE_TEST_ONBOARDING === "1",
         ),
       },
-      plugins: [pickerPlugin(), appPlugin, initialChunk, sentry],
+      plugins: [
+        pickerPlugin(),
+        appPlugin,
+        initialChunk,
+        sentry,
+        {
+          name: "renicode:html-brand",
+          async generateBundle() {
+            if (process.env.RENICODE_BUILD !== "1") return
+
+            for (const extension of ["svg", "png", "ico"])
+              this.emitFile({
+                type: "asset",
+                fileName: `renicode-icon.${extension}`,
+                source: await readFile(`resources/renicode/icon.${extension}`),
+              })
+          },
+          transformIndexHtml(html) {
+            if (process.env.RENICODE_BUILD !== "1") return html
+
+            return html
+              .replace("<title>OpenCode</title>", "<title>Renicode</title>")
+              .replaceAll("favicon-96x96-v3.png", "renicode-icon.png")
+              .replaceAll("favicon-v3.svg", "renicode-icon.svg")
+              .replaceAll("favicon-v3.ico", "renicode-icon.ico")
+              .replaceAll("apple-touch-icon-v3.png", "renicode-icon.png")
+          },
+        },
+      ],
       publicDir: "../../../app/public",
       root: "src/renderer",
       build: {

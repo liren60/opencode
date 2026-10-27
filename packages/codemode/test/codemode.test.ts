@@ -1068,6 +1068,68 @@ describe("CodeMode public contract", () => {
     }
   })
 
+  test("Unicode discovery preserves matching, namespace boundaries, and callable paths", async () => {
+    const simple = (description: string) =>
+      Tool.make({ description, input: Schema.Struct({}), output: Schema.String, execute: () => Effect.succeed("ok") })
+    const runtime = CodeMode.make({
+      tools: {
+        files: {
+          download: simple("下载文件"),
+          upload: Tool.make({
+            description: "上传文件",
+            input: Schema.Struct({ destination: Schema.String.annotate({ description: "目标目录" }) }),
+            output: Schema.String,
+            execute: () => Effect.succeed("ok"),
+          }),
+        },
+        misc: {
+          cafe: simple("Visit the café"),
+          decomposed: simple("Visit the cafe\u0301"),
+          测量距离: simple("Measure distance"),
+          cyrillic: simple("Чтение отчёта"),
+          arabic: simple("قراءة التقرير"),
+        },
+      },
+    })
+    for (const [query, paths] of [
+      ["下载", ["tools.files.download"]],
+      ["不存在", []],
+      ["ｄｏｗｎｌｏａｄ", ["tools.files.download"]],
+      ["目标目录", ["tools.files.upload"]],
+      ["café", ["tools.misc.cafe", "tools.misc.decomposed"]],
+      ["cafe\u0301", ["tools.misc.cafe", "tools.misc.decomposed"]],
+      ["测量", ['tools.misc["测量距离"]']],
+      ["ЧТЕНИЕ", ["tools.misc.cyrillic"]],
+      ["التقرير", ["tools.misc.arabic"]],
+    ] as const) {
+      expect(
+        await Effect.runPromise(
+          runtime.execute(`return search({ query: ${JSON.stringify(query)} }).items.map(item => item.path)`),
+        ),
+      ).toMatchObject({ ok: true, value: paths })
+    }
+    expect(
+      await Effect.runPromise(runtime.execute(`return search({ query: "文件", namespace: "misc" })`)),
+    ).toMatchObject({ ok: true, value: { items: [], remaining: 0, next: null } })
+    expect(
+      await Effect.runPromise(
+        runtime.execute(`
+        const first = search({ query: "文件", namespace: "files", limit: 1 })
+        const second = search({ query: "文件", namespace: "files", limit: 1, offset: first.next.offset })
+        return {
+          first: first.items.map(item => item.path),
+          second: second.items.map(item => item.path),
+          next: second.next,
+          value: await tools.files.download({}),
+        }
+      `),
+      ),
+    ).toMatchObject({
+      ok: true,
+      value: { first: ["tools.files.download"], second: ["tools.files.upload"], next: null, value: "ok" },
+    })
+  })
+
   test("a plural query term matches singular-only tool text", async () => {
     const simple = (description: string) =>
       Tool.make({

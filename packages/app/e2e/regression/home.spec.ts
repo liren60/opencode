@@ -2,10 +2,56 @@ import { expect, test, type Page } from "@playwright/test"
 import { expectPath, holdRoute, NO_PROVIDER, project, REMOTE_SERVER, seed, sessionHref } from "../utils/app"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { fixture, mockStressTimeline } from "../utils/session-fixture"
-import { mockRemoteServer } from "../utils/workspace"
+import { mockRemoteServer, openSession } from "../utils/workspace"
 import { APP_READY_TIMEOUT, expectAppVisible } from "../utils/waits"
 
 test.use({ serviceWorkers: "block" })
+
+test("project navigator groups chats, follows tabs, and creates a draft in the chosen project", async ({ page }) => {
+  const otherDirectory = "C:/OpenCode/Other project"
+  await openSession(page, {
+    name: "Current project",
+    projects: [
+      project({ id: "proj_current_project", directory: "C:/OpenCode/Current project", name: "Current project" }),
+      project({ id: "proj_other", directory: otherDirectory, name: "Other project" }),
+    ],
+    sessions: [
+      { id: "ses_current", title: "Current chat" },
+      { id: "ses_other", title: "Other chat", directory: otherDirectory, projectID: "proj_other" },
+      { id: "ses_archived", title: "Archived chat", time: { created: 1, updated: 1, archived: 2 } },
+    ],
+    seed: {
+      projects: { local: [{ worktree: "C:/OpenCode/Current project" }, { worktree: otherDirectory }] },
+      tabs: ["ses_current", "ses_other"],
+    },
+  })
+  const navigator = page.getByRole("navigation", { name: "Project navigator" })
+  const current = navigator.getByRole("button", { name: "Current project", exact: true })
+  const other = navigator.getByRole("button", { name: "Other project", exact: true })
+  await expect(navigator.getByRole("button", { name: "Hide project navigator", exact: true }).locator("svg")).toHaveCount(1)
+  await expect(navigator.getByRole("button", { name: "New session in Other project", exact: true }).locator("svg")).toHaveCount(1)
+  await expect(current).toHaveAttribute("aria-current", "true")
+  await expect(navigator.getByRole("link", { name: "Current chat", exact: true })).toHaveAttribute("aria-current", "page")
+  await expect(navigator.getByRole("link", { name: "Archived chat", exact: true })).toHaveCount(0)
+  await other.click()
+  await expect(other).toHaveAttribute("aria-expanded", "true")
+  await expect(navigator.getByRole("link", { name: "Current chat", exact: true })).toBeVisible()
+  await navigator.getByRole("link", { name: "Other chat", exact: true }).click()
+  await expectPath(page, sessionHref("ses_other"))
+  await expect(other).toHaveAttribute("aria-current", "true")
+  await expect(current).not.toHaveAttribute("aria-current", "true")
+  await page.locator('[data-slot="titlebar-tabs"] a').filter({ hasText: "Current chat" }).click()
+  await expect(current).toHaveAttribute("aria-current", "true")
+  await navigator.getByRole("button", { name: "New session in Other project", exact: true }).click()
+  await expect(page).toHaveURL(/\/new-session\?draftId=/)
+  await expect(other).toHaveAttribute("aria-current", "true")
+  await expect(navigator.getByText(otherDirectory, { exact: true })).toBeVisible()
+  await navigator.getByRole("button", { name: "Hide project navigator", exact: true }).click()
+  await expect(current).toBeHidden()
+  await page.reload()
+  await page.getByRole("button", { name: "Show project navigator", exact: true }).click()
+  await expect(other).toHaveAttribute("aria-current", "true")
+})
 
 const row = (page: Page, title: string) =>
   page.locator('[data-component="home-session-row"]').filter({ hasText: title })

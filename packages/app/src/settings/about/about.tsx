@@ -1,4 +1,6 @@
 import { createResource } from "solid-js"
+import { RENICODE } from "@opencode/ui/renicode"
+import { Logo } from "@opencode/ui/logo"
 import { useDialog } from "@opencode/ui/context/dialog"
 import { useLanguage } from "@/runtime/i18n/language"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -36,10 +38,15 @@ export function SettingsAbout(props: { active: boolean }) {
   const dialog = useDialog()
 
   const [otherContributors] = createResource(
-    () => props.active || undefined,
+    () => (!RENICODE && props.active) || undefined,
     () => loadOtherContributorCount(platform.fetch ?? fetch),
     { initialValue: FALLBACK_OTHER_CONTRIBUTORS },
   )
+
+  const contributorCount = () =>
+    otherContributors.state === "ready" || otherContributors.state === "refreshing"
+      ? otherContributors.latest
+      : FALLBACK_OTHER_CONTRIBUTORS
 
   const credit = (name: string) => (
     <bdi dir="ltr">
@@ -50,8 +57,8 @@ export function SettingsAbout(props: { active: boolean }) {
   const writerCredits = () => [
     ...writers.map(credit),
     <ExternalLink href="https://github.com/anomalyco/opencode/graphs/contributors">
-      {language.plural("settings.about.otherContributor", otherContributors.latest, {
-        count: otherContributors.latest,
+      {language.plural("settings.about.otherContributor", contributorCount(), {
+        count: contributorCount(),
       })}
     </ExternalLink>,
   ]
@@ -80,7 +87,7 @@ export function SettingsAbout(props: { active: boolean }) {
         <p>{language.t("settings.about.license")}</p>
       </div>
 
-      <AnimatedWordmark active={props.active} />
+      {RENICODE ? <Logo class="renicode-about-logo" /> : <AnimatedWordmark active={props.active} />}
 
       <div class="settings-about-credits">
         <p>{language.rich("settings.about.writtenByNames", { names: language.list(writerCredits()) })}</p>
@@ -92,8 +99,14 @@ export function SettingsAbout(props: { active: boolean }) {
       </div>
 
       <div class="settings-about-publication">
-        <p>{language.t("settings.about.firstPublished")}</p>
-        <p>{language.t("settings.about.firstIllustrated")}</p>
+        {RENICODE ? (
+          <p>{language.t("settings.about.renicode.upstream")}</p>
+        ) : (
+          <>
+            <p>{language.t("settings.about.firstPublished")}</p>
+            <p>{language.t("settings.about.firstIllustrated")}</p>
+          </>
+        )}
       </div>
 
       <p class="settings-about-faint">
@@ -103,7 +116,7 @@ export function SettingsAbout(props: { active: boolean }) {
       </p>
 
       <div class="settings-about-details">
-        <p>{language.t("settings.about.description")}</p>
+        <p>{language.t(RENICODE ? "settings.about.renicode.description" : "settings.about.description")}</p>
         <p>{language.t("settings.about.trademark")}</p>
         <p>{language.t("settings.about.typeset")}</p>
         <p>

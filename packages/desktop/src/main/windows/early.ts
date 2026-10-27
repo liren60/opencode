@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, screen, shell } from "electron"
+import { RENICODE } from "../constants"
 import { resolveExternalURL } from "../files/external-url"
 import { windowArguments } from "./bootstrap"
 import { WINDOW_IDS_KEY } from "../storage/keys"
@@ -10,7 +11,13 @@ import { storedBackgroundColor, titlebarOverlay } from "./defaults"
 import { registerRendererProtocol } from "./protocol"
 import { loadWindow } from "./scheme"
 import { allowRendererPermissions, wireNavigationPolicy, wireRendererHeaders } from "./security"
-import { manageWindowState, readWindowState, resolveWindowState, windowStateFile, type WindowState } from "./window-state"
+import {
+  manageWindowState,
+  readWindowState,
+  resolveWindowState,
+  windowStateFile,
+  type WindowState,
+} from "./window-state"
 
 export type EarlyWindow = {
   id: string
@@ -35,11 +42,17 @@ const displays = {
 // bundle, the layers and the renderer boot. restoreWindows() adopts it through takeEarlyWindow().
 export function createEarlyWindow() {
   const ids = getStore().get(WINDOW_IDS_KEY)
+  // SAFETY: This is the persisted JSON boundary; validate the one ID used without loading Effect before the first window.
+  // oxlint-disable-next-line anti-slop/no-runtime-typeof
   const id = Array.isArray(ids) && typeof ids[0] === "string" ? ids[0] : randomUUID()
   const root = path.dirname(fileURLToPath(import.meta.url))
   const file = path.join(app.getPath("userData"), windowStateFile(id))
   const state = resolveWindowState(readWindowState(file), { width: 1280, height: 800 }, displays)
-  const icons = app.isPackaged ? path.join(process.resourcesPath, "icons") : path.join(root, "../../resources/icons")
+  const iconDirectory = RENICODE ? "renicode" : "icons"
+
+  const icons = app.isPackaged
+    ? path.join(process.resourcesPath, iconDirectory)
+    : path.join(root, "../../resources", iconDirectory)
 
   const win = new BrowserWindow({
     x: state.x,
@@ -48,11 +61,13 @@ export function createEarlyWindow() {
     height: state.height,
     show: true,
     autoHideMenuBar: true,
-    title: "OpenCode",
+    title: RENICODE ? app.getName() : "OpenCode",
     icon: path.join(icons, `icon.${process.platform === "win32" ? "ico" : "png"}`),
     backgroundColor: storedBackgroundColor(),
-    ...(process.platform === "darwin" ? { titleBarStyle: "hidden" as const, trafficLightPosition: { x: 14, y: 14 } } : {}),
-    ...(process.platform === "win32" ? { frame: false, titleBarStyle: "hidden" as const, titleBarOverlay: titlebarOverlay() } : {}),
+    titleBarStyle: process.platform === "darwin" || process.platform === "win32" ? "hidden" : undefined,
+    trafficLightPosition: process.platform === "darwin" ? { x: 14, y: 14 } : undefined,
+    frame: process.platform === "win32" ? false : undefined,
+    titleBarOverlay: process.platform === "win32" ? titlebarOverlay() : undefined,
     webPreferences: {
       preload: path.join(root, "../preload/index.cjs"),
       contextIsolation: true,

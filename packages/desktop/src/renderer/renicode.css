@@ -1,0 +1,63 @@
+/* Brand-only overrides leave upstream themes and semantic status colors intact. */
+html[data-brand="renicode"] {
+  --v2-background-bg-accent: #7962e8;
+  --v2-border-border-focus: #9582f4;
+  --v2-text-text-accent: #7962e8;
+  --v2-text-text-accent-hover: #6550ce;
+  --v2-icon-icon-accent: #7962e8;
+}
+
+html[data-brand="renicode"][data-color-scheme="dark"] {
+  --v2-background-bg-base: #141622;
+  --v2-background-bg-deep: #0d0f19;
+  --v2-background-bg-layer-01: #1a1d2c;
+  --v2-background-bg-layer-02: #212538;
+  --v2-background-bg-layer-03: #2b3046;
+  --v2-background-bg-layer-04: #353b53;
+  --v2-text-text-accent: #b1a0ff;
+  --v2-text-text-accent-hover: #c8bdff;
+  --v2-icon-icon-accent: #b1a0ff;
+  --v2-text-text-muted: #a0a7be;
+  --v2-text-text-faint: #7e879f;
+  --v2-border-border-base: #ffffff12;
+  --v2-border-border-muted: #ffffff0c;
+}
+
+html[data-brand="renicode"] [data-component="new-session"] {
+  background-image:
+    radial-gradient(ellipse at 46% 22%, #9568ff0c, transparent 55%),
+    radial-gradient(ellipse at 74% 46%, #429eff08, transparent 48%);
+  border: 1px solid var(--v2-border-border-muted);
+}
+
+html[data-brand="renicode"][data-color-scheme="dark"] [data-component="new-session"] {
+  background-image:
+    radial-gradient(ellipse at 46% 22%, #9568ff16, transparent 55%),
+    radial-gradient(ellipse at 74% 46%, #429eff0c, transparent 48%);
+}
+
+.renicode-home-brand {
+  position: relative;
+  width: 100%;
+  margin-inline: auto;
+  color: var(--v2-text-text-base);
+}
+
+.renicode-home-logo {
+  display: block;
+  width: min(80%, 300px);
+  height: auto;
+  margin-inline: auto;
+  filter: drop-shadow(0 6px 28px #8968ef18);
+}
+
+.renicode-about-logo {
+  width: min(100%, 360px);
+  height: auto;
+  margin-block: 24px;
+  color: var(--v2-text-text-base);
+}
+
+html[data-brand="renicode"] [data-component="logo-mark"] {
+  aspect-ratio: 1;
+}

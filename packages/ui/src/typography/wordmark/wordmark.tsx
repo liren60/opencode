@@ -1,8 +1,10 @@
 import { createUniqueId, type ComponentProps } from "solid-js"
+import { RENICODE, RenicodeLogo } from "../../components/renicode"
 
 export function Wordmark(
   props: Pick<ComponentProps<"svg">, "class"> & { fade?: boolean; muted?: boolean; outline?: boolean },
 ) {
+  if (RENICODE) return <RenicodeLogo class={props.class} />
   const mask = createUniqueId()
   const maskGradient = createUniqueId()
 

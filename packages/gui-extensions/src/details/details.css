@@ -36,6 +36,18 @@
   gap: 2px;
 }
 
+.session-summary-toolbar {
+  flex-direction: row;
+  align-items: center;
+  width: 280px;
+  max-width: calc(100vw - 32px);
+  margin-block-end: 8px;
+  padding-inline-start: 14px;
+  color: var(--v2-text-text-muted);
+  font-size: 13px;
+  line-height: var(--line-height-base);
+}
+
 .session-summary-row,
 .session-service-row,
 .session-service-config,

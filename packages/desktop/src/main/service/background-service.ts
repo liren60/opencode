@@ -5,6 +5,7 @@ import { cleanStages } from "./cli-stages"
 import { DesktopCli } from "./desktop-cli"
 import { SidecarCredentials } from "./sidecar-credentials"
 import { sidecarProbe } from "./sidecar-probe"
+import { RENICODE } from "../constants"
 
 export * as BackgroundService from "./background-service"
 
@@ -58,6 +59,7 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
         ...cli.command,
         "serve",
         "--service",
+        ...(RENICODE ? ["--hostname", "127.0.0.1", "--port", "29123"] : []),
         ...(isolated ? ["--hostname", "0.0.0.0", "--port", String(0x0c0c)] : []),
       ],
       onStart: (reason, previousVersion) =>

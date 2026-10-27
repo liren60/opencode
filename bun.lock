@@ -555,6 +555,21 @@
         "@opencode/plugin": "^2.0.27 || ^0.0.0-dev",
       },
     },
+    "packages/plugins/improvement": {
+      "name": "@opencode/plugin-improvement",
+      "version": "2.1.4",
+      "dependencies": {
+        "effect": "catalog:",
+      },
+      "devDependencies": {
+        "@tsconfig/bun": "catalog:",
+        "@types/bun": "catalog:",
+        "@typescript/native": "catalog:",
+      },
+      "peerDependencies": {
+        "@opencode/plugin": "^2.1.4 || ^0.0.0-dev",
+      },
+    },
     "packages/posts": {
       "name": "@opencode/posts",
       "dependencies": {
@@ -2010,6 +2025,8 @@
     "@opencode/plugin-browser": ["@opencode/plugin-browser@workspace:packages/plugin-browser"],
 
     "@opencode/plugin-figma": ["@opencode/plugin-figma@workspace:packages/plugins/figma"],
+
+    "@opencode/plugin-improvement": ["@opencode/plugin-improvement@workspace:packages/plugins/improvement"],
 
     "@opencode/posts": ["@opencode/posts@workspace:packages/posts"],
 

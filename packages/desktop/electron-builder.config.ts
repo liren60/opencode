@@ -235,7 +235,7 @@ const getBase = (appId: string): Configuration => {
   }
 }
 
-export function getConfig() {
+function getChannelConfig() {
   const channel = resolveChannel()
   const appId = APP_IDS[channel]
   const base = getBase(appId)
@@ -282,6 +282,38 @@ export function getConfig() {
         rpm: { packageName: "opencode", fpm: [rpmNoBuildIdLinksFpm, metainfoFpm(appId), legacyDesktopEntryFpm] },
       }
     }
+  }
+}
+
+export function getConfig(): Configuration {
+  const config = getChannelConfig()
+
+  if (process.env.RENICODE_BUILD !== "1") return config
+
+  return {
+    ...config,
+    appId: "ai.renicode.desktop",
+    productName: "Renicode",
+    extraResources: [
+      ...(Array.isArray(config.extraResources) ? config.extraResources : []),
+      { from: "resources/renicode-storage.sha256", to: "renicode-storage.sha256" },
+      { from: "resources/renicode", to: "renicode", filter: ["icon.ico", "icon.png"] },
+    ],
+    win: { ...config.win, icon: "resources/renicode/icon.ico" },
+    nsis: {
+      ...config.nsis,
+      installerIcon: "resources/renicode/icon.ico",
+      installerHeaderIcon: "resources/renicode/icon.ico",
+    },
+    artifactName: "renicode-${version}-${os}-${arch}.${ext}",
+    directories: { ...config.directories, output: "dist-renicode" },
+    extraMetadata: {
+      ...config.extraMetadata,
+      name: "renicode-desktop",
+      version: process.env.OPENCODE_VERSION ?? "2.1.4-renicode.1",
+    },
+    protocols: { name: "Renicode", schemes: ["renicode"] },
+    publish: undefined,
   }
 }
 

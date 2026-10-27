@@ -1,6 +1,7 @@
 import { createMemo, createResource, onMount, type Accessor } from "solid-js"
 import type { ColorScheme } from "@opencode/ui/theme/context"
 import { useTheme } from "@opencode/ui/theme/context"
+import { RENICODE } from "@opencode/ui/renicode"
 import {
   monoDefault,
   monoFontFamily,
@@ -61,7 +62,8 @@ export function createServerShellController(server: Accessor<ServerConnection.An
       actions.mutate({ ...previous, shell: value || undefined })
       void serverCtx()
         .sdk.api.config.update({ shell: value || null })
-        .catch((error: unknown) => {
+        // SAFETY: promise rejection values are untyped; only Error instances expose their message to the toast.
+        .catch((error) => {
           actions.mutate(previous)
           showToast({
             variant: "error",
@@ -74,9 +76,13 @@ export function createServerShellController(server: Accessor<ServerConnection.An
 }
 
 export function createAppearanceSettingsController() {
+  const language = useLanguage()
   const settings = useSettings()
   const theme = useTheme()
-  const themes = createMemo(() => theme.ids().map((id) => ({ id, name: theme.name(id) })))
+
+  const themes = createMemo(() =>
+    theme.ids().map((id) => ({ id, name: RENICODE && id === "oc-2" ? language.t("app.name") : theme.name(id) })),
+  )
 
   onMount(() => void theme.loadThemes())
 

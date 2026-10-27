@@ -3,6 +3,12 @@
 - This repository does not use Changesets. Do not add `.changeset` files; follow the existing release workflow instead.
 - The default branch is `dev`. Base branches and worktrees on `origin/dev`, target PRs at `dev`, and diff against `origin/dev` unless told otherwise.
 
+## Local Renicode Deployment
+
+- User preference: future Renicode application changes should include A/B deployment, not stop at source edits, unless the user explicitly asks for code-only work.
+- Use `bun script/deploy-renicode.ts --check` and follow `script/renicode-portable.md`. Stage updates in the inactive slot; do not overwrite the active slot or the original installation.
+- Never force-close or restart the running desktop or background server to activate an update. Let the launcher switch after the current desktop exits normally, and report whether the update is staged or active.
+
 ## Live TUI Testing
 
 - Run `bun run dev:live` from a development worktree to test its TUI against the currently elected `opencode` background server and live sessions.

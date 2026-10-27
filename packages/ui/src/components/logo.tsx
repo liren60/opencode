@@ -1,6 +1,9 @@
 import { type ComponentProps } from "solid-js"
+import { RENICODE, RenicodeLogo, RenicodeMark } from "./renicode"
 
 export const Mark = (props: { class?: string }) => {
+  if (RENICODE) return <RenicodeMark class={props.class} />
+
   return (
     <svg
       data-component="logo-mark"
@@ -16,6 +19,8 @@ export const Mark = (props: { class?: string }) => {
 }
 
 export const Splash = (props: Pick<ComponentProps<"svg">, "ref" | "class">) => {
+  if (RENICODE) return <RenicodeMark ref={props.ref} class={props.class} />
+
   return (
     <svg
       ref={props.ref}
@@ -32,6 +37,8 @@ export const Splash = (props: Pick<ComponentProps<"svg">, "ref" | "class">) => {
 }
 
 export const Logo = (props: { class?: string }) => {
+  if (RENICODE) return <RenicodeLogo class={props.class} />
+
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"

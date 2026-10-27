@@ -10,6 +10,7 @@ import { DesktopLogging } from "./native/logging"
 import { BackgroundService } from "./service/background-service"
 import { DesktopCli } from "./service/desktop-cli"
 import { marks } from "./lifecycle/marks"
+import { reportLauncherReady } from "./lifecycle/renicode-launcher"
 
 // Everything above has been loaded and evaluated by now; the layers start below.
 marks.bundle = Date.now()
@@ -26,6 +27,18 @@ const runIpc = Effect.fn("Desktop.runIpc")(function* () {
   yield* Effect.forkScoped(extensions.start)
 
   if (lifecycle.restoreWindows().length) ipc.installMenu()
+  if (process.env.RENICODE_LAUNCHER_RUN) {
+    const background = yield* BackgroundService.Service
+    const connection = yield* background.connection
+    const response = yield* Effect.tryPromise(() =>
+      fetch(`${connection.url}/api/info`, {
+        headers: { Authorization: `Basic ${Buffer.from(`opencode:${connection.password}`).toString("base64")}` },
+        signal: AbortSignal.timeout(10_000),
+      }),
+    )
+    if (!response.ok) return yield* Effect.die(new Error("Launcher backend health check failed"))
+    reportLauncherReady()
+  }
   // The first window's renderer now has its IPC port and is hydrating its stores over it. The crash
   // reporter (spawns a process) and the context menu (a dependency tree) are not worth answering late.
   yield* Effect.sleep("500 millis")

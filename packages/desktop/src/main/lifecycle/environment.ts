@@ -6,6 +6,8 @@ import { DesktopPaths } from "../paths"
 import { getUserShell, loadShellEnv } from "../service/shell-env"
 import { registerRendererProtocol, setDockIcon, setProtocolReporter } from "../windows"
 import { scoped } from "../native/logging"
+import { RENICODE } from "../constants"
+import { renicodeEnvironment } from "./renicode-profile"
 
 // electron-context-menu attaches to every existing and future window, so it can load once the first
 // window is up instead of holding up startup with its dependency tree.
@@ -23,13 +25,15 @@ export const preferApplicationEnvironment = Effect.gen(function* () {
   const shell = process.platform === "win32" ? null : getUserShell()
   const shellEnv = shell ? yield* loadShellEnv(shell) : null
   yield* Effect.sync(() => {
-    if (!shellEnv?.XDG_STATE_HOME) delete process.env.XDG_STATE_HOME
+    if (!RENICODE && !shellEnv?.XDG_STATE_HOME) delete process.env.XDG_STATE_HOME
     Object.assign(process.env, {
       ...shellEnv,
       OPENCODE_EXPERIMENTAL_ICON_DISCOVERY: "true",
       OPENCODE_EXPERIMENTAL_FILEWATCHER: "true",
       OPENCODE_CLIENT: "desktop",
     })
+
+    if (RENICODE) Object.assign(process.env, renicodeEnvironment(app.getPath("userData")))
   })
 })
 
@@ -38,7 +42,7 @@ export const prepareDesktop = Effect.gen(function* () {
   const paths = yield* DesktopPaths.resolve
 
   if (app.isPackaged || process.env.OPENCODE_DESKTOP_DISABLE_PROTOCOL_REGISTRATION !== "1")
-    app.setAsDefaultProtocolClient("opencode")
+    app.setAsDefaultProtocolClient(RENICODE ? "renicode" : "opencode")
   const runFork = Effect.runForkWith(yield* Effect.context())
   setProtocolReporter((level, message, data) =>
     runFork(scoped("protocol", level === "error" ? Effect.logError(message, data) : Effect.logWarning(message, data))),
@@ -50,7 +54,7 @@ export const prepareDesktop = Effect.gen(function* () {
 export const loadProxyEnvironment = Effect.gen(function* () {
   yield* Effect.try(() => {
     ensureLoopbackNoProxy()
-    // Electron 41.2 has a newer Node API than the current @types/node package.
+    // SAFETY: Electron 41.2 provides this Node API; the pinned @types/node predates it.
     const proxyAwareHttp = http as typeof http & { setGlobalProxyFromEnv(): void }
     proxyAwareHttp.setGlobalProxyFromEnv()
   }).pipe(Effect.catch((error) => Effect.logWarning("failed to load proxy environment", { error })))

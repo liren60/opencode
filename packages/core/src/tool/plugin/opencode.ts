@@ -26,7 +26,11 @@ export const MoveInput = Schema.Struct({
   }),
 })
 
-const MoveOutput = Schema.Struct({ sessionID: Session.ID, directory: AbsolutePath })
+const MoveOutput = Schema.Struct({
+  sessionID: Session.ID,
+  requestedDirectory: Schema.String,
+  status: Schema.Literal("requested"),
+})
 
 export const WorktreeCreateInput = Schema.Struct({
   name: Schema.Trim.check(Schema.isNonEmpty()).annotate({ description: "Worktree name." }),
@@ -143,8 +147,8 @@ export const Plugin = {
                 delivery: "steer",
               })
               return {
-                output: { sessionID, directory: input.directory },
-                content: `Moved session ${sessionID} to ${input.directory}.`,
+                output: { sessionID, requestedDirectory: input.directory, status: "requested" as const },
+                content: `Requested session ${sessionID} move to ${input.directory}. Confirm the session's current directory after the next safe boundary before using relative paths there.`,
               }
             }).pipe(
               Effect.mapError(

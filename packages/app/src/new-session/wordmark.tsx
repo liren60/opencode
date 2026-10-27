@@ -1,7 +1,15 @@
 import { Logo } from "@opencode/ui/logo"
+import { RENICODE } from "@opencode/ui/renicode"
 import "./wordmark.css"
 
 export function NewSessionWordmark() {
+  if (RENICODE)
+    return (
+      <div data-component="new-session-wordmark" aria-hidden="true" class="renicode-home-brand">
+        <Logo class="renicode-home-logo" />
+      </div>
+    )
+
   return (
     <div
       data-component="new-session-wordmark"

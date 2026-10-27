@@ -72,6 +72,8 @@ export function DetailsHeader(props: {
 function DetailsPopover(props: ParentProps<{ active: boolean; open: boolean; onOpenChange: (open: boolean) => void }>) {
   const ctx = useExtension()
   const keybinds = ctx.keybinds
+  const [pinned, setPinned] = createVisitState(false)
+  const pinLabel = () => ctx.t(pinned() ? "unpin" : "pin")
 
   // Cached timelines remain mounted; only the visible details own the command. It leaves with this component.
   ctx.add(Command, (): Command | undefined =>
@@ -118,7 +120,34 @@ function DetailsPopover(props: ParentProps<{ active: boolean; open: boolean; onO
         <Popover.Content
           class="session-summary-popover z-50 max-h-[calc(100dvh-96px)] overflow-y-auto border-0 bg-transparent p-1 outline-none"
           aria-label={ctx.t("title")}
+          onInteractOutside={(event) => {
+            if (pinned()) event.preventDefault()
+          }}
+          onEscapeKeyDown={(event) => {
+            if (pinned()) event.preventDefault()
+          }}
         >
+          <div class="session-summary-card session-summary-toolbar">
+            <span class="session-summary-label">{ctx.t("tooltip")}</span>
+            <Tooltip value={pinLabel()}>
+              <IconButton
+                icon={<Icon name="pin" />}
+                variant="ghost-muted"
+                state={pinned() ? "pressed" : undefined}
+                aria-label={pinLabel()}
+                aria-pressed={pinned()}
+                onClick={() => setPinned(!pinned())}
+              />
+            </Tooltip>
+            <Tooltip value={ctx.t("common.close")}>
+              <Popover.CloseButton
+                as={IconButton}
+                icon={<Icon name="xmark" />}
+                variant="ghost-muted"
+                aria-label={ctx.t("common.close")}
+              />
+            </Tooltip>
+          </div>
           {props.children}
         </Popover.Content>
       </Popover.Portal>

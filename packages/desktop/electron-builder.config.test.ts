@@ -96,6 +96,33 @@ test("shared packaging defaults", async () => {
   ])
 })
 
+test("Renicode has an independent installer identity and no upstream update feed", () => {
+  const previous = process.env.RENICODE_BUILD
+  process.env.RENICODE_BUILD = "1"
+
+  try {
+    for (const channel of ["dev", "beta", "prod"]) {
+      const config = load(channel)
+      expect(config.appId).toBe("ai.renicode.desktop")
+      expect(config.productName).toBe("Renicode")
+      expect(config.win?.icon).toBe("resources/renicode/icon.ico")
+      expect(config.nsis?.installerIcon).toBe("resources/renicode/icon.ico")
+      expect(config.nsis?.installerHeaderIcon).toBe("resources/renicode/icon.ico")
+      expect(config.extraResources).toContainEqual({
+        from: "resources/renicode",
+        to: "renicode",
+        filter: ["icon.ico", "icon.png"],
+      })
+      expect(config.protocols).toEqual({ name: "Renicode", schemes: ["renicode"] })
+      expect(config.publish).toBeUndefined()
+      expect(config.directories?.output).toBe("dist-renicode")
+    }
+  } finally {
+    if (previous === undefined) delete process.env.RENICODE_BUILD
+    else process.env.RENICODE_BUILD = previous
+  }
+})
+
 test("trims external dependencies without excluding runtime files", () => {
   const fileStats = statSync(import.meta.filename)
   const dirStats = statSync(import.meta.dirname)

@@ -15,6 +15,7 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
 import { Persistence } from "@/runtime/persistence/schema"
 import en from "@/runtime/i18n/en"
 import { dict } from "@opencode/ui/i18n/en"
+import { brandDictionary } from "./brand"
 import {
   createDesktopNativeBundle,
   detectDesktopNativeLocale,
@@ -96,13 +97,13 @@ const StoredLocaleSchema = Schema.Struct({
 
 const INTL = DESKTOP_NATIVE_LOCALE_TAGS
 
-const base: Dictionary = { ...en, ...dict }
+const base: Dictionary = brandDictionary({ ...en, ...dict })
 
 const dicts = new Map<Locale, Dictionary>([["en", base]])
 
 const merge = (app: Promise<Source>, ui: Promise<Source>) =>
   // SAFETY: a locale module exports a flat string map for the keys of the English dictionaries (`language.test.ts`).
-  Promise.all([app, ui]).then(([a, b]) => ({ ...base, ...a.dict, ...b.dict }) as Dictionary)
+  Promise.all([app, ui]).then(([a, b]) => brandDictionary({ ...base, ...a.dict, ...b.dict }) as Dictionary)
 
 const loaders: Record<Exclude<Locale, "en">, () => Promise<Dictionary>> = {
   zh: () => merge(import("@/runtime/i18n/zh"), import("@opencode/ui/i18n/zh")),

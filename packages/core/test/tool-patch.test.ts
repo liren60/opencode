@@ -268,7 +268,7 @@ describe("PatchTool", () => {
                     },
                   },
                 ])
-                expect(readsBeforeEditApproval).toBe(2)
+                expect(readsBeforeEditApproval).toBe(3)
                 expect(yield* Effect.promise(() => fs.readFile(path.join(tmp.path, "nested/new.txt"), "utf8"))).toBe(
                   "created\n",
                 )
@@ -448,6 +448,21 @@ describe("PatchTool", () => {
                 ).toMatchObject({ status: "completed" })
                 expect(yield* exists(source)).toBe(false)
                 expect(yield* Effect.promise(() => fs.readFile(destination, "utf8"))).toBe("after\n")
+                expect(assertions).toMatchObject([
+                  {
+                    action: "edit",
+                    metadata: {
+                      files: [
+                        { file: "old.txt", status: "deleted", patch: expect.stringContaining("-before") },
+                        {
+                          file: "nested/moved.txt",
+                          status: "modified",
+                          patch: expect.stringContaining("-existing"),
+                        },
+                      ],
+                    },
+                  },
+                ])
               }),
             ),
           ),
@@ -1208,6 +1223,16 @@ describe("PatchTool", () => {
                   ),
                 ).toMatchObject({ status: "completed" })
                 expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("replacement\n")
+                expect(assertions).toMatchObject([
+                  {
+                    action: "edit",
+                    metadata: {
+                      files: [
+                        { file: "existing.txt", status: "modified", patch: expect.stringContaining("-sentinel") },
+                      ],
+                    },
+                  },
+                ])
               }),
             ),
           ),
@@ -1217,22 +1242,33 @@ describe("PatchTool", () => {
     ),
   )
 
-  it.live("overwrites an add target that appears during permission approval", () =>
+  it.live("preserves an add target that appears during permission approval", () =>
     Effect.acquireUseRelease(
       Effect.promise(() => tmpdir()),
       (tmp) => {
         reset()
         const target = path.join(tmp.path, "appeared.txt")
+        const untouched = path.join(tmp.path, "untouched.txt")
         afterEditApproval = () => Effect.promise(() => fs.writeFile(target, "winner\n")).pipe(Effect.orDie)
         return withTool(tmp.path, (registry) =>
           Effect.gen(function* () {
+            yield* Effect.promise(() => fs.writeFile(untouched, "keep\n"))
             expect(
               yield* executeTool(
                 registry,
-                call("*** Begin Patch\n*** Add File: appeared.txt\n+replacement\n*** End Patch"),
+                call(
+                  "*** Begin Patch\n*** Delete File: untouched.txt\n*** Add File: appeared.txt\n+replacement\n*** End Patch",
+                ),
               ),
-            ).toMatchObject({ status: "completed" })
-            expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("replacement\n")
+            ).toMatchObject({
+              status: "error",
+              error: {
+                message:
+                  "File changed during patch approval: appeared.txt. Re-read the file and prepare a new patch. No changes were applied.",
+              },
+            })
+            expect(yield* Effect.promise(() => fs.readFile(target, "utf8"))).toBe("winner\n")
+            expect(yield* Effect.promise(() => fs.readFile(untouched, "utf8"))).toBe("keep\n")
           }),
         )
       },

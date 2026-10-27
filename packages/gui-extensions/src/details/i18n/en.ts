@@ -1,6 +1,8 @@
 export default {
   title: "Session details",
   tooltip: "Summary",
+  pin: "Pin summary",
+  unpin: "Unpin summary",
   "command.toggle": "Toggle summary",
   noBranch: "No branch",
   "move.title": "Move to worktree",

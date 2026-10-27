@@ -11,6 +11,8 @@ node_modules
 playground
 tmp
 dist
+dist-renicode
+/packages/cli/.bun-cache/
 dist-node
 ts-dist
 .turbo

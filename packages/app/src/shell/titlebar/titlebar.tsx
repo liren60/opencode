@@ -6,6 +6,7 @@ import { IconButton } from "@opencode/ui/icon-button"
 import { Icon } from "@opencode/ui/icon"
 import { Keybind } from "@opencode/ui/keybind"
 import { Tooltip } from "@opencode/ui/tooltip"
+import { RENICODE, RenicodeMark } from "@opencode/ui/renicode"
 
 import { LayoutRoute, useLayout } from "@/shell/state/layout"
 import { usePlatform } from "@/runtime/platform/platform"
@@ -815,13 +816,20 @@ function ChannelIndicator(props: { horizontal?: boolean; sidebar?: boolean }) {
         aria-label={debug()?.label}
         aria-pressed={debug()?.pressed}
       >
-        <img
-          src={channel === "beta" ? betaIcon : devIcon}
-          alt={debug() ? "" : label()}
-          class="shrink-0 rounded-[4px] shadow-[var(--v2-elevation-raised)]"
-          classList={{ "size-6": props.sidebar, "size-5": !props.sidebar }}
-          draggable={false}
-        />
+        <Show
+          when={RENICODE}
+          fallback={
+            <img
+              src={channel === "beta" ? betaIcon : devIcon}
+              alt={debug() ? "" : label()}
+              class="shrink-0 rounded-[4px] shadow-[var(--v2-elevation-raised)]"
+              classList={{ "size-6": props.sidebar, "size-5": !props.sidebar }}
+              draggable={false}
+            />
+          }
+        >
+          <RenicodeMark class={props.sidebar ? "size-6 shrink-0" : "size-5 shrink-0"} />
+        </Show>
       </Dynamic>
     </Tooltip>
   )

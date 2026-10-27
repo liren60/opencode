@@ -26,7 +26,10 @@ export function setNativeTranslations(next: DesktopNativeBundle) {
 }
 
 export function nativeT(key: DesktopNativeKey, params?: Record<string, string | number>) {
-  return formatDesktopNativeMessage(bundle.messages[key], params)
+  return formatDesktopNativeMessage(
+    import.meta.env?.RENICODE ? bundle.messages[key].replaceAll("OpenCode", "Renicode") : bundle.messages[key],
+    params,
+  )
 }
 
 /** The app locale the renderer last pushed. GUI extension catalogs resolve against it. */

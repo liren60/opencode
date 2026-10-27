@@ -1,5 +1,7 @@
 import { app, BrowserWindow, nativeImage, nativeTheme } from "electron"
+import { RENICODE } from "../constants"
 import type { Path } from "effect"
+import { Option, Schema } from "effect"
 import { type TitlebarTheme } from "../../shared/ipc-contract"
 import { WindowFullscreenChanged, WindowPinchZoomChanged, WindowZoomChanged } from "../../shared/ipc-rpc/events"
 import { emitIpcEvent } from "../ipc-events"
@@ -22,22 +24,13 @@ export function windowAppearance(path: Path.Path, paths: DesktopPaths.Resolved) 
   const mode = tone()
 
   return {
-    title: "OpenCode",
+    title: RENICODE ? app.getName() : "OpenCode",
     icon: iconPath(path, paths),
     backgroundColor: backgroundColor ?? storedBackgroundColor(),
-    ...(process.platform === "darwin"
-      ? {
-          titleBarStyle: "hidden" as const,
-          trafficLightPosition: { x: 14, y: 14 },
-        }
-      : {}),
-    ...(process.platform === "win32"
-      ? {
-          frame: false,
-          titleBarStyle: "hidden" as const,
-          titleBarOverlay: overlay({ mode }),
-        }
-      : {}),
+    titleBarStyle: process.platform === "darwin" || process.platform === "win32" ? ("hidden" as const) : undefined,
+    trafficLightPosition: process.platform === "darwin" ? { x: 14, y: 14 } : undefined,
+    frame: process.platform === "win32" ? false : undefined,
+    titleBarOverlay: process.platform === "win32" ? overlay({ mode }) : undefined,
     webPreferences: {
       preload: paths.preloadPath,
       contextIsolation: true,
@@ -69,7 +62,7 @@ export function setBackgroundColor(color: string) {
 export function getBackgroundColor() {
   const stored = getStore().get(BACKGROUND_COLOR_KEY)
 
-  return backgroundColor ?? (typeof stored === "string" ? stored : undefined)
+  return backgroundColor ?? Schema.decodeUnknownOption(Schema.String)(stored).pipe(Option.getOrUndefined)
 }
 
 export function setTitlebar(win: BrowserWindow, theme: Partial<TitlebarTheme> = {}) {
@@ -138,7 +131,11 @@ export function wireFullscreen(win: BrowserWindow) {
 }
 
 function iconsDir(path: Path.Path, paths: DesktopPaths.Resolved) {
-  return app.isPackaged ? path.join(process.resourcesPath, "icons") : path.join(paths.developmentResourcesRoot, "icons")
+  const directory = RENICODE ? "renicode" : "icons"
+
+  return app.isPackaged
+    ? path.join(process.resourcesPath, directory)
+    : path.join(paths.developmentResourcesRoot, directory)
 }
 
 function iconPath(path: Path.Path, paths: DesktopPaths.Resolved) {

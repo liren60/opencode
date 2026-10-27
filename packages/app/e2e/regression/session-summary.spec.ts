@@ -3,8 +3,72 @@ import { SERVER, holdRoute, seed, sessionHref } from "../utils/app"
 import { openWithDirection } from "../utils/direction"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { fixture, installStressSessionTabs, mockStressTimeline, pageMessages } from "../utils/session-fixture"
+import { openSession } from "../utils/workspace"
+import { expectSessionTitle } from "../utils/waits"
 
 const cors = { "access-control-allow-origin": "*" }
+
+test("pinned summary stays open while editing and can still be closed explicitly", async ({ page }) => {
+  const workspace = await openSession(page, {
+    name: "PinnedSummary",
+    sessions: [
+      { id: "ses_pinned_summary", title: "Pinned summary" },
+      { id: "ses_other_summary", title: "Other summary" },
+    ],
+  })
+
+  const trigger = page.getByRole("button", { name: "Session details", exact: true })
+  const summary = page.getByRole("dialog", { name: "Session details", exact: true })
+  const pin = summary.getByRole("button", { name: "Pin summary", exact: true })
+  const unpin = summary.getByRole("button", { name: "Unpin summary", exact: true })
+  await trigger.click()
+  await expect(pin).toHaveAttribute("aria-pressed", "false")
+  await pin.click()
+  await expect(unpin).toHaveAttribute("aria-pressed", "true")
+  await summary.getByRole("button", { name: "MCP", exact: true }).click()
+  const submenu = page.getByRole("dialog", { name: "MCP", exact: true })
+  await expect(submenu).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(submenu).toBeHidden()
+  await expect(summary).toBeVisible()
+  await page.keyboard.press("Escape")
+  await expect(summary).toBeVisible()
+  await workspace.editor.fill("Keep the summary visible")
+  await expect(workspace.editor).toBeFocused()
+  await expect(summary).toBeVisible()
+  await expect(unpin).toHaveAttribute("aria-pressed", "true")
+
+  await unpin.click()
+  await expect(pin).toHaveAttribute("aria-pressed", "false")
+  await workspace.editor.click()
+  await expect(summary).toBeHidden()
+  await trigger.click()
+  await pin.click()
+  await summary.getByRole("button", { name: "Close", exact: true }).click()
+  await expect(summary).toBeHidden()
+  await expect(trigger).toBeFocused()
+
+  // Closing explicitly keeps the pin for this visit; routing away resets it along with the open state.
+  await trigger.click()
+  await expect(unpin).toHaveAttribute("aria-pressed", "true")
+  const mac = await page.evaluate(() => /(Mac|iPod|iPhone|iPad)/.test(navigator.platform))
+  await page.keyboard.press(mac ? "Meta+Shift+Y" : "Control+Shift+Y")
+  await expect(summary).toBeHidden()
+  await trigger.click()
+  await trigger.click()
+  await expect(summary).toBeHidden()
+  await trigger.click()
+  await page.locator(`[data-titlebar-tab-link][href="${sessionHref("ses_other_summary")}"]`).click()
+  await expectSessionTitle(page, "Other summary")
+  await expect(summary).toBeHidden()
+  await page.locator(`[data-titlebar-tab-link][href="${sessionHref("ses_pinned_summary")}"]`).click()
+  await expectSessionTitle(page, "Pinned summary")
+  await expect(trigger).toHaveAttribute("aria-expanded", "false")
+  await trigger.click()
+  await expect(pin).toHaveAttribute("aria-pressed", "false")
+  await page.keyboard.press("Escape")
+  await expect(summary).toBeHidden()
+})
 
 for (const custom of [false, true]) {
   test(`summary toggle ${custom ? "custom" : "default"} shortcut follows the active session`, async ({ page }) => {
@@ -227,6 +291,16 @@ for (const direction of ["ltr", "rtl"] as const) {
 
     await trigger.click()
     await expect(summary).toBeVisible()
+    const pin = summary.getByRole("button", { name: "Pin summary", exact: true })
+    const close = summary.getByRole("button", { name: "Close", exact: true })
+    await expect
+      .poll(async () => {
+        const first = (await pin.boundingBox())!
+        const last = (await close.boundingBox())!
+
+        return direction === "ltr" ? first.x < last.x : first.x > last.x
+      })
+      .toBe(true)
     await expect
       .poll(async () => {
         const message = (await row.boundingBox())!

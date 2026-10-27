@@ -17,6 +17,7 @@ import { WorktreeStrategies } from "@opencode/core/worktree/strategies"
 import { Model } from "@opencode/schema/model"
 import { Effect } from "effect"
 import { initRepo } from "./fixture/git"
+import { offlineModels } from "./fixture/models"
 import { tmpdirScoped } from "./fixture/tmpdir"
 import { testEffect } from "./lib/effect"
 import { permissionLayer } from "./lib/permission"
@@ -24,6 +25,42 @@ import { executeTool, toolIdentity } from "./lib/tool"
 import { makePluginTestLayer, PluginTestLayer } from "./plugin/fixture"
 
 const it = testEffect(PluginTestLayer)
+
+testEffect(makePluginTestLayer(undefined, [offlineModels])).live(
+  "acknowledges a session move request without claiming the directory has changed",
+  () =>
+    Effect.gen(function* () {
+      const plugins = yield* Plugin.Service
+      const sessions = yield* Session.Service
+      const location = yield* Location.Service
+      const destination = yield* tmpdirScoped()
+      const host = yield* PluginHost.make(plugins)
+      yield* OpenCodeTools.Plugin.effect(host)
+      const session = yield* sessions.create({
+        location: Location.Ref.make({ directory: location.directory }),
+        model: Model.Ref.make({ providerID: Provider.ID.make("test"), id: Model.ID.make("alpha") }),
+      })
+      const registry = yield* Tool.Service
+      const result = yield* executeTool(registry, {
+        sessionID: session.id,
+        ...toolIdentity,
+        call: {
+          type: "tool-call",
+          id: "call-move",
+          name: "execute",
+          input: {
+            code: `return await tools.opencode.session_move({ directory: ${JSON.stringify(destination.path)} })`,
+          },
+        },
+      })
+      expect(result.status).toBe("completed")
+      expect(JSON.parse(result.content?.[0]?.type === "text" ? result.content[0].text : "")).toEqual({
+        sessionID: session.id,
+        requestedDirectory: destination.path,
+        status: "requested",
+      })
+    }),
+)
 
 const alpha = { id: "test/alpha", name: "Alpha", released: 300, variants: ["fast"], cost: [], status: "beta" }
 const beta = { id: "other/beta", name: "Beta", released: 200, variants: [], cost: [], status: "active" }

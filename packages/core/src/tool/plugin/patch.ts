@@ -5,6 +5,7 @@ import type { SessionHooks } from "@opencode/plugin/effect/session"
 import { ToolFailure } from "@opencode/ai/effect"
 import { FileDiff } from "@opencode/schema/file-diff"
 import { Effect, Result, Schema } from "effect"
+import path from "node:path"
 import { Bom } from "@opencode/util/bom"
 import { Environment } from "../../environment/index.js"
 import { Formatter } from "../../formatter.js"
@@ -50,6 +51,7 @@ type Prepared =
       readonly content: string
       readonly before: string
       readonly after: string
+      readonly existed: boolean
     })
   | (Extract<Patch.Hunk, { readonly type: "delete" }> & {
       readonly target: FileAccess.Target
@@ -62,6 +64,7 @@ type Prepared =
       readonly before: string
       readonly after: string
       readonly moveTarget?: FileAccess.Target
+      readonly destinationBefore?: string
     })
 
 export const Plugin = {
@@ -127,14 +130,24 @@ export const Plugin = {
                 yield* Effect.gen(function* () {
                   const target = yield* resolveTarget(hunk.path)
                   if (hunk.type === "add") {
+                    // A preceding delete may replace a parent file with a directory in this same patch.
+                    const current = prepared.some(
+                      (change) =>
+                        change.type === "delete" && target.absolute.startsWith(`${change.target.absolute}${path.sep}`),
+                    )
+                      ? undefined
+                      : yield* FileMutation.readText(environment.files, target.absolute).pipe(
+                          Effect.catchTag("Environment.NotFound", () => Effect.undefined),
+                        )
                     const content =
                       hunk.contents.endsWith("\n") || hunk.contents === "" ? hunk.contents : `${hunk.contents}\n`
                     prepared.push({
                       ...hunk,
                       target,
                       content,
-                      before: "",
+                      before: current?.text ?? "",
                       after: Bom.split(content).text,
+                      existed: current !== undefined,
                     })
                     return
                   }
@@ -170,6 +183,11 @@ export const Plugin = {
                     catch: (error) => new ToolFailure({ message: `patch verification failed: ${errorMessage(error)}` }),
                   })
                   const moveTarget = hunk.movePath ? yield* resolveTarget(hunk.movePath) : undefined
+                  const destination = moveTarget
+                    ? yield* FileMutation.readText(environment.files, moveTarget.absolute).pipe(
+                        Effect.catchTag("Environment.NotFound", () => Effect.undefined),
+                      )
+                    : undefined
                   prepared.push({
                     ...hunk,
                     target,
@@ -177,6 +195,7 @@ export const Plugin = {
                     before,
                     after: update.content,
                     moveTarget,
+                    destinationBefore: destination?.text,
                   })
                   if (!moveTarget) updates.set(target.absolute, Patch.joinBom(update.content, update.bom))
                 }).pipe(
@@ -188,7 +207,19 @@ export const Plugin = {
                 )
               }
 
-              const patchFiles = prepared.map((change) => patchFile(change))
+              const patchFiles = prepared.flatMap((change) => {
+                if (change.type !== "update" || !change.moveTarget) return [patchFile(change)]
+                // A move can replace unrelated destination contents as well as deleting the source.
+                return [
+                  fileDiff(change.target.resource, change.before, "", "deleted"),
+                  fileDiff(
+                    change.moveTarget.resource,
+                    change.destinationBefore ?? "",
+                    change.after,
+                    change.destinationBefore === undefined ? "added" : "modified",
+                  ),
+                ]
+              })
               const targets = prepared.flatMap((change) => [
                 change.target,
                 ...(change.type === "update" && change.moveTarget ? [change.moveTarget] : []),
@@ -206,6 +237,40 @@ export const Plugin = {
                 agent: context.agent,
                 source,
               })
+
+              // Approval can take time. Do not overwrite contents that differ from the approved preview.
+              const checked = new Set<string>()
+              for (const change of prepared) {
+                const originals = [
+                  {
+                    target: change.target,
+                    before: change.type === "add" && !change.existed ? undefined : change.before,
+                  },
+                  ...(change.type === "update" && change.moveTarget
+                    ? [{ target: change.moveTarget, before: change.destinationBefore }]
+                    : []),
+                ]
+                for (const original of originals) {
+                  if (checked.has(original.target.absolute)) continue
+                  checked.add(original.target.absolute)
+                  if (
+                    original.before === undefined &&
+                    prepared.some(
+                      (item) =>
+                        item.type === "delete" &&
+                        original.target.absolute.startsWith(`${item.target.absolute}${path.sep}`),
+                    )
+                  )
+                    continue
+                  const current = yield* FileMutation.readText(environment.files, original.target.absolute).pipe(
+                    Effect.catchTag("Environment.NotFound", () => Effect.undefined),
+                  )
+                  if (current?.text !== original.before)
+                    return yield* new ToolFailure({
+                      message: `File changed during patch approval: ${original.target.resource}. Re-read the file and prepare a new patch. No changes were applied.`,
+                    })
+                }
+              }
 
               yield* Effect.forEach(
                 prepared,
@@ -324,7 +389,7 @@ function patchFile(change: Prepared, after = change.after): typeof FileDiff.Info
     change.target.absolute,
     change.before,
     after,
-    change.type === "add" ? "added" : change.type === "delete" ? "deleted" : "modified",
+    change.type === "add" ? (change.existed ? "modified" : "added") : change.type === "delete" ? "deleted" : "modified",
   )
   return {
     ...diff,

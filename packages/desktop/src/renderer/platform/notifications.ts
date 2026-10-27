@@ -1,4 +1,5 @@
 import type { Platform } from "@opencode/app/desktop"
+import { RENICODE } from "@opencode/ui/renicode"
 import type { ElectronAPI } from "../api-types"
 
 export function createDesktopNotify(api: ElectronAPI): Platform["notify"] {
@@ -9,7 +10,9 @@ export function createDesktopNotify(api: ElectronAPI): Platform["notify"] {
 
     const notification = new Notification(title, {
       body: description ?? "",
-      icon: "https://opencode.ai/favicon-96x96-v3.png",
+      icon: RENICODE
+        ? new URL("./renicode-icon.png", document.baseURI).href
+        : "https://opencode.ai/favicon-96x96-v3.png",
       silent: true,
     })
 

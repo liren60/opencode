@@ -199,9 +199,10 @@ export type SearchEntry = {
 
 const tokenize = (query: string): Array<string> =>
   query
+    .normalize("NFKC")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
     .toLowerCase()
-    .split(/[^a-z0-9]+/)
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
     .filter((term) => term.length > 0 && term !== "*")
 
 const termForms = (term: string): Array<string> => {
@@ -215,8 +216,8 @@ const rank = (entries: ReadonlyArray<SearchEntry>, query: string): Array<SearchE
   const terms = tokenize(query).map(termForms)
   return entries
     .map((entry) => {
-      const path = entry.description.path.toLowerCase()
-      const description = entry.description.description.toLowerCase()
+      const path = entry.description.path.normalize("NFKC").toLowerCase()
+      const description = entry.description.description.normalize("NFKC").toLowerCase()
       const score = terms.reduce(
         (total, forms) =>
           total +
@@ -296,6 +297,7 @@ const toSearchEntry = <R>(visible: VisibleTool<R>): SearchEntry => ({
     ),
   ]
     .join("\n")
+    .normalize("NFKC")
     .toLowerCase(),
 })
 

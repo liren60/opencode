@@ -4,7 +4,8 @@ import { enableCompileCache } from "node:module"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { app } from "electron"
-import { APP_ID, APP_NAME } from "../constants"
+import { APP_ID, APP_NAME, RENICODE } from "../constants"
+import { renicodeEnvironment } from "./renicode-profile"
 
 const testOnboarding = process.env.OPENCODE_TEST_ONBOARDING === "1"
 
@@ -31,6 +32,18 @@ export function configureApplication() {
 
   const testRoot = createTestRoot()
   app.setPath("userData", testRoot ? path.join(testRoot, "desktop") : path.join(app.getPath("appData"), APP_ID))
+
+  if (RENICODE && !testRoot) {
+    Object.assign(process.env, renicodeEnvironment(app.getPath("userData")))
+    // Inherited overrides must not reconnect the fork to OpenCode's database or service.
+    delete process.env.OPENCODE_DB
+
+    delete process.env.OPENCODE_CONFIG
+
+    delete process.env.OPENCODE_CONFIG_CONTENT
+
+    delete process.env.OPENCODE_DESKTOP_SERVER_CHANNEL
+  }
 
   if (testRoot) {
     app.setPath("sessionData", path.join(testRoot, "session"))

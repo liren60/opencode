@@ -1,7 +1,6 @@
 import { Show, Suspense, type ParentProps } from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
-import { ResizeHandle } from "@opencode/ui/resize-handle"
 import { Titlebar } from "@/shell/titlebar/titlebar"
 import { usePlatform } from "@/runtime/platform/platform"
 import { ToastRegion } from "@/shell/notifications/toast"
@@ -11,6 +10,7 @@ import { useSettingsSurface } from "@/settings/surface"
 import { useSettings } from "@/settings/model"
 import { ExtensionServerCover } from "@/runtime/extension/server-shell"
 import { ExtensionSlot } from "@/runtime/extension/render"
+import { ProjectSidebar } from "@/shell/project-sidebar"
 
 export default function Layout(props: ParentProps) {
   const platform = usePlatform()
@@ -18,8 +18,7 @@ export default function Layout(props: ParentProps) {
   const preferences = useSettings()
   const mobile = createMediaQuery("(max-width: 767px)")
 
-  const [state, setState] = createStore<{ tabsWidth: number; tabsMount: HTMLElement | undefined }>({
-    tabsWidth: 260,
+  const [state, setState] = createStore<{ tabsMount: HTMLElement | undefined }>({
     tabsMount: undefined,
   })
 
@@ -47,25 +46,8 @@ export default function Layout(props: ParentProps) {
       >
         <Titlebar verticalTabs={verticalTabs() ? { mount: state.tabsMount } : undefined} />
         <div class="flex flex-1 min-h-0 min-w-0 flex-row">
-          <Show when={verticalTabs()}>
-            <aside
-              ref={(element) => setState("tabsMount", element)}
-              data-slot="vertical-tabs-sidebar"
-              class="relative flex h-full min-h-0 shrink-0 flex-col bg-v2-background-bg-deep pe-0.5 ps-2.5 pb-[var(--shell-bottom-inset,8px)] pt-[var(--shell-top-inset,8px)]"
-              style={{
-                width: `${state.tabsWidth}px`,
-                "padding-bottom": "max(10px, var(--safe-area-inset-bottom, env(safe-area-inset-bottom, 0px)))",
-              }}
-            >
-              <ResizeHandle
-                class="-end-2"
-                direction="horizontal"
-                size={state.tabsWidth}
-                min={140}
-                max={520}
-                onResize={(width) => setState("tabsWidth", width)}
-              />
-            </aside>
+          <Show when={!mobile()}>
+            <ProjectSidebar verticalTabs={verticalTabs()} mountTabs={(element) => setState("tabsMount", element)} />
           </Show>
           {/* Size containment collapses percentage-height descendants in WebKit. */}
           <main
