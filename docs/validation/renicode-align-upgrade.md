@@ -8,6 +8,8 @@
 
 提交前检查：新版完整check1452warnings/0errors、11guide blocks、Turbo36/36；fixed-upstream changed lint85文件/0问题、GUI官方tsc通过。旧版首轮check因registry keeper scope类型失败，仅改用已有 `ServerScope.local`后check1281warnings/0errors、15guide blocks、Turbo35/35及App官方tsc通过。旧版registry重复10次40pass/20fail，新增Windows等价路径关闭契约仍未实现；按全部提交授权归档现状，不称该回归通过。两个暂存差异的高置信度凭据模式扫描均0命中，此有限扫描不是完整安全审计。
 
+提交与远程核对：旧版 `66b40ea2349df9eea23a8ff4c103f07cdb6f9a2a`、新版双父合并 `2ce0d3d9a53c4c5a93bcde1b0fdc23f9e3c76520` 已原子推送到自有origin对应 `renicode` / `align-renicode`，ls-remote一致、当时两工作树clean。首次hook因Node的TS插件加载失败，三轮后续在Turbo Git status查询timeout（300/600/180秒）；仅清理已识别检查进程。Bun node shim及命令专用Husky init移除继承Git定位变量后，未修改/跳过原钩子，最终 `sh_185a8e1a1001aaphU6EuBdiSvh` 完整check1452warnings/0errors、11guide blocks、36/36、0cached、2m25.236s，push退出0。不是部署、激活或实时profile升级证据。
+
 ## 环境与范围
 
 - 实施工作树仍为 `C:/Users/reni.li/Downloads/PG/opencode-align`，固定上游 `86ce19d96eccbfb95af3ff3189c7071575f94339`，未提交合并；原工作区用户工作未覆盖。

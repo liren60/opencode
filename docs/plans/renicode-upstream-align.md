@@ -191,3 +191,5 @@
 - packaged smoke 的最终结果本轮尚未核实。新增 updater guard 恢复 dev 渠道禁用 electron-updater（`build.packaged && build.channel !== "dev"`），避免绕过独立 A/B；最终包仍需重新构建、打包和运行验证，不能把此前产物审计当作含此修复的证据。
 - 本轮新版完整 check 实际通过（1452 warnings/0 errors、11 guide blocks、Turbo36/36），固定上游 changed lint85文件/0问题、GUI官方 `typecheck:tsc`通过。旧版完整 check 首轮因 registry keeper 的 scope 类型错误失败；仅将普通 `"local"`改用既有 `ServerScope.local`后，完整 check通过（1281 warnings/0 errors、15 guide blocks、Turbo35/35），App官方tsc通过。
 - 原工作树另有正在实施的项目关闭计划；其 registry 文件重复10次为40pass/20fail，失败均为新增 Windows等价路径关闭用例，保留为未完成工作，不为归档而删除测试、放宽断言或继续修改其生产实现。全部提交仅保存该现存状态，不称旧版所有回归通过。
+- 提交/推送实际完成：旧工作树 `66b40ea23`、新版双父合并 `2ce0d3d9a`，已原子推送到 `https://github.com/liren60/opencode.git` 的 `renicode` / `align-renicode`；远程完整SHA与本地一致，两工作树当时均clean。未强推、未提PR、未部署或迁移实时profile。
+- 推送失败历史保留：首轮Node不能加载TS lint插件；随后三轮hook在Turbo的Git状态查询处timeout（300/600/180秒）。仅清理本次检查的已识别工具进程；未停止用户桌面/后台。临时PATH使用Bun提供的同哈希node shim，命令专用Husky init移除继承的Git仓库定位变量后，原pre-push完整执行通过（1452warnings/0errors、11guide blocks、Turbo36/36、0cached、2m25.236s），推送退出0。未修改或跳过仓库钩子；临时环境不写入全局配置。
