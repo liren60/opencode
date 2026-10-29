@@ -1,12 +1,12 @@
-# Provider Policy
+# 提供商策略
 
-Status: **Implemented.**
+状态：**已实现。**
 
-## Purpose
+## 用途
 
-Policies control whether an operation on a named resource is allowed. Statements are authored in configuration files or delivered by the connected OpenCode Console, and applied by a terminal plugin.
+策略控制是否允许对具名资源执行操作。策略语句写在配置文件中，或由已连接的 OpenCode Console 下发，并由末端策略插件应用。
 
-The supported actions are:
+支持的操作如下：
 
 ```text
 action:   provider.use
@@ -20,30 +20,30 @@ resource: mcp:<server ID>, plugin:<unversioned package or absolute local path>,
           hosted:<integration ID>, or skill:<skill ID>
 ```
 
-Provider configuration and provider policy remain separate:
+提供商配置和提供商策略相互独立：
 
-- `providers` describes endpoints, options, and model overrides.
-- `experimental.policies` determines whether an operation using a provider is allowed.
+- `providers` 描述端点、选项和模型覆盖设置。
+- `experimental.policies` 决定是否允许使用提供商的操作。
 
-A provider can be correctly configured and have valid credentials while policy still denies its use.
+即使提供商配置正确且凭据有效，策略仍可拒绝使用它。
 
-## Goals
+## 目标
 
-- Replace legacy `enabled_providers` and `disabled_providers`.
-- Keep the default experience unchanged when users specify no policy.
-- Support wildcard matching for actions and resources.
-- Provide one small policy vocabulary that can later cover operations such as `plugin.load` or `mcp.connect`.
-- Let user policy override repository policy, and later allow organization-managed policy to override both.
-- Keep evaluation simple: matching statements are applied in order and the last match wins.
+- 替代旧版 `enabled_providers` 和 `disabled_providers`。
+- 用户未指定策略时，保持默认体验不变。
+- 支持操作和资源的通配符匹配。
+- 提供一套精简策略词汇，以后可覆盖 `plugin.load` 或 `mcp.connect` 等操作。
+- 让用户策略覆盖仓库策略，并允许后续的组织托管策略覆盖二者。
+- 保持评估简单：按顺序应用匹配语句，以最后匹配项为准。
 
-## Non-Goals
+## 非目标
 
-- Policies do not configure endpoints, credentials, models, or provider options.
-- Policies do not make unusable resources usable.
-- Policies do not currently provide conditions, principals, approval prompts, or enforced configuration values.
-- A `tool.use` statement never grants access; permissions and saved approvals still decide `allow` versus `ask`.
+- 策略不配置端点、凭据、模型或提供商选项。
+- 策略不能让原本不可用的资源变得可用。
+- 策略目前不提供条件、主体、审批提示或强制配置值。
+- `tool.use` 语句绝不授予访问权；`allow` 与 `ask` 仍由权限和已保存审批决定。
 
-## Statement Shape
+## 语句结构
 
 ```jsonc
 {
@@ -67,33 +67,33 @@ interface PolicyInfo {
 }
 ```
 
-`ConfigPolicy` owns the statement schema; `action` is a closed set and a statement with any other value is dropped during normalization with a diagnostic. The policy plugin interprets `provider.use` after all other catalog transforms have run and `tool.use` after every other permission evaluation hook.
+`ConfigPolicy` 负责语句 schema；`action` 是封闭集合，其他值的语句会在规范化时被丢弃并产生诊断。策略插件在所有其他目录变换之后解释 `provider.use`，在所有其他权限评估钩子之后解释 `tool.use`。
 
-## Matching
+## 匹配
 
-Both `action` and `resource` use opencode's existing wildcard matching behavior.
+`action` 和 `resource` 都使用 opencode 现有的通配符匹配行为。
 
-Examples:
+示例：
 
-| Action         | Resource           | Matches                                                         |
+| 操作           | 资源               | 匹配范围                                                        |
 | -------------- | ------------------ | --------------------------------------------------------------- |
-| `provider.use` | `openai`           | Only use of provider ID `openai`                                |
-| `provider.use` | `company-*`        | Use of provider IDs such as `company-us` and `company-eu`       |
-| `tool.use`     | `shell:git push *` | The `shell` permission for `git push` with or without arguments |
-| `tool.use`     | `*`                | Every permission check on every resource                        |
+| `provider.use` | `openai`           | 仅提供商 ID 为 `openai` 的使用操作 |
+| `provider.use` | `company-*`        | 使用 `company-us`、`company-eu` 等提供商 ID |
+| `tool.use`     | `shell:git push *` | `git push` 的 `shell` 权限，无论是否带参数 |
+| `tool.use`     | `*`                | 对所有资源的所有权限检查 |
 
-No pattern-specific precedence exists. A specific resource does not automatically beat a wildcard resource. Written/evaluation order controls the result.
+不存在按模式具体程度决定的优先级。具体资源不会自动优先于通配符资源；编写／评估顺序决定结果。
 
-## Evaluation
+## 评估
 
-To evaluate an operation and resource:
+评估操作和资源时：
 
-1. Start with `allow`.
-2. Consider every statement whose `action` and `resource` match the requested action and resource.
-3. Each matching statement replaces the current decision with its `effect`.
-4. The last matching statement determines the result.
+1. 从 `allow` 开始。
+2. 考虑所有 `action` 和 `resource` 与请求操作、资源匹配的语句。
+3. 每条匹配语句用自己的 `effect` 替换当前决定。
+4. 最后匹配的语句决定结果。
 
-Conceptually:
+概念示例：
 
 ```ts
 function evaluate(action: string, resource: string, fallback: Policy.Effect, statements: Policy.Info[]) {
@@ -105,13 +105,13 @@ function evaluate(action: string, resource: string, fallback: Policy.Effect, sta
 }
 ```
 
-Each caller supplies the default effect appropriate for its operation. Catalog provider use supplies `"allow"`, so no provider policy statements means normal behavior continues: otherwise usable providers are allowed.
+每个调用者为自身操作提供适当的默认效果。目录中的提供商使用默认 `"allow"`，因此没有提供商策略语句时延续正常行为：允许使用其他条件满足的提供商。
 
-## Ordering Within One Config Document
+## 单个配置文档内的顺序
 
-Statements remain in the order written by the user.
+语句保留用户编写顺序。
 
-To deny all providers except Anthropic:
+要拒绝 Anthropic 以外的所有提供商：
 
 ```jsonc
 {
@@ -132,14 +132,14 @@ To deny all providers except Anthropic:
 }
 ```
 
-Result:
+结果：
 
 ```text
 provider.use / anthropic -> allow
 provider.use / openai    -> deny
 ```
 
-To allow internal providers except experimental ones:
+要允许内部提供商，但排除实验性提供商：
 
 ```jsonc
 {
@@ -153,7 +153,7 @@ To allow internal providers except experimental ones:
 }
 ```
 
-Result:
+结果：
 
 ```text
 company-stable: allowed
@@ -161,17 +161,17 @@ company-experimental-fast: denied
 openai: denied
 ```
 
-## Ordering Across Authored Config Documents
+## 多个手工配置文档之间的顺序
 
-Ordinary settings and policies have different precedence needs:
+普通设置和策略需要不同的优先级：
 
-- Ordinary settings are read forward, so location-specific settings override user-global settings.
-- Policies are read by reversing authored config documents, so user-global policy can override repository policy.
-- Statements inside each document keep their written order.
+- 普通设置按正序读取，因此 Location 特定设置覆盖用户全局设置。
+- 策略将手工配置文档逆序读取，因此用户全局策略可覆盖仓库策略。
+- 每个文档内部的语句仍保持编写顺序。
 
-At minimum, this means a repository cannot silently re-enable something the user denied globally.
+至少，这意味着仓库不能静默重新启用用户全局拒绝的资源。
 
-Project config:
+项目配置：
 
 ```jsonc
 {
@@ -181,7 +181,7 @@ Project config:
 }
 ```
 
-User-global config:
+用户全局配置：
 
 ```jsonc
 {
@@ -191,25 +191,25 @@ User-global config:
 }
 ```
 
-Result:
+结果：
 
 ```text
 provider.use / openai -> deny
 ```
 
-The relative policy precedence of direct project files and `.opencode` files is intentionally deferred until `.opencode` configuration is reviewed.
+直接项目文件与 `.opencode` 文件之间的相对策略优先级，有意留待 `.opencode` 配置评审时确定。
 
-## Organization-Managed Policy
+## 组织托管策略
 
-Organization-managed policy is not ordinary authored config. Managed statements are appended after the reversed authored statements so they have final authority: an organization `deny` cannot be lifted by a repository or user `allow`, and an organization `allow` lifts a lower-authority `deny`.
+组织托管策略不是普通手工配置。托管语句追加在逆序手工语句之后，因此具有最终决定权：组织的 `deny` 不能被仓库或用户的 `allow` 解除；组织的 `allow` 则会解除低优先级的 `deny`。
 
 ```text
 repository policy -> user-global policy -> organization-managed policy
 ```
 
-### Delivery
+### 下发
 
-The OpenCode Console compiles a workspace's Providers and Tools policies into statements for the authenticated caller and returns them from `GET /api/v2/config` alongside managed providers:
+OpenCode Console 将工作区的提供商和工具策略编译为面向已认证调用者的语句，通过 `GET /api/v2/config` 与托管提供商一同返回：
 
 ```jsonc
 {
@@ -224,49 +224,49 @@ The OpenCode Console compiles a workspace's Providers and Tools policies into st
 }
 ```
 
-- `experimental` is omitted when the caller has no statements; omission and an empty array are equivalent.
-- The list is per caller and its order is significant. The client stores it exactly as received; it never reorders, dedupes, or normalizes statements.
-- Every request the Console plugin makes, this fetch and the token refresh included, carries the `User-Agent` `opencode/<channel>/<version>/<app>`. The Console reads it to tell which OpenCode a member runs and whether it evaluates the statements it is being sent; older builds that drop them are otherwise indistinguishable from ones that enforce.
-- `ManagedPolicy` (`packages/core/src/managed-policy.ts`) is the process-global home for the current statements and the organization name. The Console plugin (`opencode.provider.opencode`) writes it whenever its config snapshot is applied; the policy plugin reads it synchronously when evaluating.
-- Statements ride on the Console plugin's snapshot, so they follow the connection: a credential switch replaces them, and a disconnect or a 404 from the Console clears them. Statements from different connections never merge.
-- Freshness is the snapshot's freshness: the next poll (about one minute) or the next credential switch.
+- 调用者没有语句时省略 `experimental`；省略与空数组等价。
+- 列表按调用者生成，顺序有意义。客户端按收到的原样保存，绝不重排、去重或规范化语句。
+- Console 插件的每个请求（包括本次获取和 token 刷新）都携带 `User-Agent`：`opencode/<channel>/<version>/<app>`。Console 据此判断成员运行的 OpenCode 版本，以及它是否会评估下发语句；否则，忽略语句的旧构建与执行语句的构建无法区分。
+- `ManagedPolicy`（`packages/core/src/managed-policy.ts`）在进程全局保存当前语句和组织名称。Console 插件（`opencode.provider.opencode`）每次应用配置快照时写入，策略插件在评估时同步读取。
+- 语句随 Console 插件快照和连接变化：切换凭据会替换，断开连接或 Console 返回 404 会清除。不同连接的语句绝不合并。
+- 新鲜度与快照一致：下次轮询（约一分钟）或下次凭据切换时更新。
 
-### Failure
+### 失败
 
-A config fetch or credential refresh that fails for the connection already in place keeps that connection's last config, providers and statements alike, and logs a warning. Dropping the config would fail closed for managed providers but open for policy, because a member's personal credentials keep working while the organization's restrictions vanish. A disconnect, a credential switch, or a 404 still replaces the snapshot. There is no durable offline cache.
+现有连接的配置获取或凭据刷新失败时，保留该连接最后的配置、提供商和语句，并记录警告。丢弃配置会使托管提供商默认不可用，却让策略默认放行，因为成员个人凭据仍能工作，而组织限制消失。断开连接、切换凭据或返回 404 仍会替换快照。没有持久化离线缓存。
 
-### Messages
+### 提示消息
 
-When the deciding `tool.use` statement is organization-managed, the denial reads `Blocked by <organization>'s policy`, or `Blocked by your organization's policy` when the connection has no organization name. Authored statements produce `Blocked by configuration policy`.
+如果决定拒绝的 `tool.use` 语句由组织托管，提示为 `Blocked by <organization>'s policy`（被该组织策略阻止）；连接没有组织名时为 `Blocked by your organization's policy`（被你的组织策略阻止）。手工语句对应 `Blocked by configuration policy`（被配置策略阻止）。
 
-### Protection
+### 保护
 
-Plugins must not be allowed to add, remove, or override policy statements. Plugins can contribute functionality or configured providers; policy determines whether opencode permits an operation through its managed execution paths.
+不得允许插件添加、移除或覆盖策略语句。插件可以贡献功能或配置的提供商；策略决定 opencode 是否允许通过其托管执行路径进行操作。
 
-Plugin `remove` operations in config ignore `opencode.config.policy` and `opencode.provider.opencode`, whatever the selector (`-*`, `-opencode.*`, or the exact ID). Otherwise a repository could switch off enforcement or the fetch that delivers organization statements.
+配置中的插件 `remove` 操作无论使用何种选择器（`-*`、`-opencode.*` 或准确 ID），都忽略 `opencode.config.policy` 和 `opencode.provider.opencode`。否则仓库可关闭策略执行，或关闭获取组织语句的流程。
 
-Provider policy is not a full sandbox for executable plugins. A denied provider must not be usable through the normal provider/model path, but arbitrary plugin code requires separate governance if that becomes a compliance requirement.
+提供商策略不是可执行插件的完整沙箱。被拒绝的提供商不得通过正常提供商／模型路径使用；如果合规要求覆盖任意插件代码，则需要另行治理。
 
-## Tool Policy
+## 工具策略
 
-`tool.use` is the only tool-policy action. An allow statement never overrides an agent/session denial or grants a saved approval.
+`tool.use` 是唯一的工具策略操作。允许语句绝不覆盖智能体／会话的拒绝，也不会授予已保存审批。
 
-Console-managed config ignores unknown fields and skips statements whose action is unsupported, preserving the order of every supported statement. A future action cannot invalidate the providers or supported policies in the response. Supported actions still require a valid resource and effect; malformed supported statements remain configuration errors. Skipped actions are not enforced by that client. Authored config drops unsupported statements with a diagnostic.
+Console 托管配置忽略未知字段，跳过不支持的操作语句，并保留所有受支持语句的顺序。未来新增操作不能使响应中的提供商或已支持策略失效。受支持操作仍必须有有效的 resource 和 effect；格式错误的受支持语句仍属于配置错误。被跳过的操作不会由该客户端执行。手工配置会丢弃不支持的语句并产生诊断。
 
-`tool.use` statements run in the `permission.evaluate` hook after agent and session rules, saved approvals, and every other plugin's hook. For each resource the tool checks, the string `<action>:<resource>` is matched against the statement resource; if the last matching statement for any resource is `deny`, the evaluation becomes `deny` with the message above.
+`tool.use` 语句在 `permission.evaluate` 钩子中运行，位于智能体和会话规则、已保存审批及所有其他插件钩子之后。对工具检查的每个资源，将 `<action>:<resource>` 字符串与语句资源匹配；任意资源最后匹配的语句为 `deny` 时，评估变为 `deny`，并显示上述提示。
 
 ```text
 tool.use / shell:sudo ls        -> deny   (statement shell:sudo *)
 tool.use / shell:git status     -> unchanged: the agent's rules decide allow or ask
 ```
 
-- A configured `deny` from agent or session rules already denies before the hook runs.
-- A statement `deny` overrides `allow` and `ask`, including saved "Allow always" approvals.
-- A statement `allow` never grants; it only cancels an earlier, broader statement `deny`.
+- 智能体或会话规则配置的 `deny`，在钩子运行前就已拒绝。
+- 语句 `deny` 覆盖 `allow` 和 `ask`，包括已保存的“始终允许”审批。
+- 语句 `allow` 不授予权限，只解除之前范围更广的语句 `deny`。
 
-## Skill Integration Policy
+## 技能集成策略
 
-Skills use their OpenCode IDs, including a namespace when present. Denied skills are absent from the client catalog and model guidance, and cannot be loaded by the skill tool, a prompt mention, or standalone activation.
+技能使用自身 OpenCode ID（如有命名空间则包含命名空间）。被拒绝技能不会出现在客户端目录或模型指导中，也不能通过 skill 工具、提示中的提及或独立激活加载。
 
 ```jsonc
 {
@@ -279,11 +279,11 @@ Skills use their OpenCode IDs, including a namespace when present. Denied skills
 }
 ```
 
-The protected terminal config policy plugin filters `skill:<id>` through `ctx.skill.transform`, following the provider and MCP catalog pattern. The skill domain does not interpret policy statements. Config and managed policy changes reload the catalog and publish an update after the transformed values are visible. Removing a restriction restores the registered skill without reinstallation. A global integrations allow list also excludes skills unless it explicitly allows their IDs. Skill policy does not remove content already stored in session history or sandbox plugin filesystem access.
+受保护的末端配置策略插件通过 `ctx.skill.transform` 过滤 `skill:<id>`，沿用提供商和 MCP 目录模式。技能领域不解释策略语句。配置和托管策略变化会重载目录，在变换后的值可见后发布更新。移除限制会恢复已注册技能，无需重装。全局集成允许列表也会排除技能，除非显式允许其 ID。技能策略不会删除已存储在会话历史中的内容，也不会对插件文件系统访问实施沙箱隔离。
 
-Plugin hooks are governed by the existing plugin integration resource: blocking an external plugin prevents its import or unloads its active generation, including its hooks. There is no separate hook resource; required built-in policy and Console authentication plugins remain protected.
+插件钩子受现有插件集成资源管理：阻止外部插件会阻止其导入，或卸载其活动代次（包括钩子）。没有单独的钩子资源；必需的内置策略插件和 Console 认证插件仍受保护。
 
-## Interaction With Provider Configuration
+## 与提供商配置的关系
 
 ```jsonc
 {
@@ -302,32 +302,32 @@ Plugin hooks are governed by the existing plugin integration resource: blocking 
 }
 ```
 
-The provider entry configures `company-ai`; the policy statements make it the only provider permitted for use.
+提供商条目配置 `company-ai`；策略语句使它成为唯一允许使用的提供商。
 
-Provider policy applies regardless of how a provider becomes known or usable, including:
+无论提供商如何被发现或变得可用，提供商策略都适用，包括：
 
-- models.dev catalog data
-- environment credentials
-- saved accounts
-- built-in provider plugins
-- explicit provider configuration
+- models.dev 目录数据
+- 环境凭据
+- 已保存账户
+- 内置提供商插件
+- 显式提供商配置
 
-## Applying Provider Policy
+## 应用提供商策略
 
-Provider records and model overrides are assembled before checking provider policy. Otherwise later provider loading could recreate a provider that was already filtered.
+在检查提供商策略前，先组装提供商记录和模型覆盖设置。否则后续提供商加载可能重新创建已过滤的提供商。
 
-Flow:
+流程：
 
-1. Build provider/model catalog entries, including providers managed by the connected Console.
-2. Apply configured provider and model overrides.
-3. Run the terminal config policy transform over the reversed authored statements followed by the organization-managed statements.
-4. Remove providers denied by the final matching `provider.use` statement.
+1. 构建提供商／模型目录条目，包括已连接 Console 托管的提供商。
+2. 应用配置的提供商和模型覆盖设置。
+3. 对逆序手工语句和随后追加的组织托管语句运行末端配置策略变换。
+4. 移除被最后匹配的 `provider.use` 语句拒绝的提供商。
 
-Config reload refreshes the plugin's policy snapshot and rebuilds the catalog. A changed Console snapshot notifies the policy plugin to rebuild its catalogs and re-run the terminal transforms.
+配置重载会刷新插件策略快照并重建目录。Console 快照变化会通知策略插件重建目录，并重新运行末端变换。
 
-## Legacy Migration
+## 旧版迁移
 
-Legacy deny list:
+旧版拒绝列表：
 
 ```jsonc
 {
@@ -335,7 +335,7 @@ Legacy deny list:
 }
 ```
 
-Equivalent v2 policy:
+等价的 V2 策略：
 
 ```jsonc
 {
@@ -348,7 +348,7 @@ Equivalent v2 policy:
 }
 ```
 
-Legacy allowlist:
+旧版允许列表：
 
 ```jsonc
 {
@@ -356,7 +356,7 @@ Legacy allowlist:
 }
 ```
 
-Equivalent v2 policy:
+等价的 V2 策略：
 
 ```jsonc
 {
@@ -370,10 +370,10 @@ Equivalent v2 policy:
 }
 ```
 
-## MCP Integration Policy
+## MCP 集成策略
 
-The protected terminal config policy plugin applies `integration.use` statements to `mcp:<server-name>` using `ctx.mcp.transform`. It removes denied servers after configured and plugin-provided catalog entries are assembled. The MCP domain owns connections and resource cleanup; it does not interpret policy statements.
+受保护的末端配置策略插件通过 `ctx.mcp.transform`，将 `integration.use` 语句应用于 `mcp:<server-name>`。在配置和插件提供的目录条目组装完成后，它移除被拒绝的服务器。MCP 领域负责连接和资源清理，不解释策略语句。
 
-Plugin activation batches catalog registrations, so denied servers never open an initial connection. Config and managed policy updates reload the catalog. Removing an existing server closes its connection and removes its tools, instructions, prompts, resources, and resource templates. Explicit connect and direct tool, prompt, and resource calls reject removed servers through the ordinary not-found path. Allowing the server again restores its catalog entry and reconnects it.
+插件激活会批量注册目录，因此被拒绝服务器不会建立初始连接。配置和托管策略更新会重载目录。移除已有服务器会关闭连接，并移除其工具、指令、提示、资源和资源模板。显式连接以及直接工具、提示、资源调用，对已移除服务器通过常规“未找到”路径拒绝。再次允许服务器会恢复其目录条目并重新连接。
 
-Policies are evaluated after authored statements and then organization statements, with the final matching statement deciding access. API-added server overrides are inputs to the same catalog, so they also pass through the policy transform. Catalog removal does not sandbox arbitrary executable plugins; plugin import governance remains a separate `plugin:*` integration policy check.
+策略先评估手工语句，再评估组织语句，以最后匹配项决定访问。API 添加的服务器覆盖设置也是同一目录的输入，因此同样经过策略变换。目录移除不会为任意可执行插件提供沙箱；插件导入治理仍是独立的 `plugin:*` 集成策略检查。

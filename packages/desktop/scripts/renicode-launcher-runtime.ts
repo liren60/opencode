@@ -25,16 +25,10 @@ export function startSlot(store: RenicodeLauncherStore, slot: Slot, database: st
   store.begin(id, slot.name)
   store.record("starting", slot.name)
   try {
-    const child = spawn([path.join(slot.directory, "Renicode.exe")], {
-      cwd: slot.directory,
-      env: {
-        ...process.env,
-        RENICODE_LAUNCHER_DB: database,
-        RENICODE_LAUNCHER_RUN: slot.reporting ? id : undefined,
-      },
-      stdout: "ignore",
-      stderr: "ignore",
-      windowsHide: true,
+    const child = spawnDesktop(slot, {
+      ...process.env,
+      RENICODE_LAUNCHER_DB: database,
+      RENICODE_LAUNCHER_RUN: slot.reporting ? id : undefined,
     })
     store.db.prepare("UPDATE run SET pid = ? WHERE id = ?").run(child.pid, id)
     return { status: "started" as const, id, child }
@@ -43,6 +37,17 @@ export function startSlot(store: RenicodeLauncherStore, slot: Slot, database: st
     store.record("failed", slot.name, undefined, String(error))
     return { status: "failed" as const, id }
   }
+}
+
+export function spawnDesktop(slot: Slot, env = process.env) {
+  return spawn([path.join(slot.directory, "Renicode.exe")], {
+    cwd: slot.directory,
+    env,
+    stdout: "ignore",
+    stderr: "ignore",
+    // windowsHide also hides a GUI application's first ShowWindow, not just consoles.
+    // The launcher is already compiled without a console; let Electron show its window.
+  })
 }
 
 /** The bootstrap desktop predates launcher reporting; process survival alone does not prove backend health. */

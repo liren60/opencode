@@ -4,7 +4,7 @@ import { cp, mkdir } from "node:fs/promises"
 import path from "node:path"
 import { parseArgs } from "node:util"
 import { RenicodeLauncherStore } from "../src/main/lifecycle/renicode-launcher-store"
-import { baselineReady, hash, startSlot, verifySlot } from "./renicode-launcher-runtime"
+import { baselineReady, hash, spawnDesktop, startSlot, verifySlot } from "./renicode-launcher-runtime"
 
 const args = parseArgs({
   args: process.argv.slice(2),
@@ -142,11 +142,7 @@ async function launch() {
     const slot = last ? store.slot(last.slot) : undefined
     if (slot) {
       await verifySlot(slot)
-      const child = spawn([path.join(slot.directory, "Renicode.exe")], {
-        stdout: "ignore",
-        stderr: "ignore",
-        windowsHide: true,
-      })
+      const child = spawnDesktop(slot)
       child.unref()
     }
     return status()

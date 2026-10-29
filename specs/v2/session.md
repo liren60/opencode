@@ -1,32 +1,32 @@
-# V2 Session Contract
+# V2 会话契约
 
-Status: **Current semantic overview.** Protocol owns public operations, Schema owns public shapes and durable events, and Core owns execution and persistence behavior.
+状态：**现行语义概述。** Protocol 负责公共操作，Schema 负责公共数据结构和持久化事件，Core 负责执行与持久化行为。
 
-## Prompt Admission Precedes Execution
+## 提示接纳先于执行
 
-`Session.prompt(...)` publishes one durable `session.inbox.enqueued` fact whose projection inserts one `session_inbox` row before advisory execution begins. An inbox item remains outside model-visible Session History until delivery. The `session.inbox.delivered` projection consumes the row and inserts a visible user or synthetic message atomically; compaction and move control items are consumed without becoming transcript messages.
+`Session.prompt(...)` 发布一条持久化的 `session.inbox.enqueued` 事实，其投影会在建议性的执行调度开始前插入一行 `session_inbox`。收件箱条目在投递前不会进入模型可见的会话历史。`session.inbox.delivered` 的投影以原子方式消费该行，并插入可见的用户消息或合成消息；压缩和移动控制项被消费后不会成为对话消息。
 
-Reusing a Session ID adopts the existing Session. Reusing a user or synthetic inbox item ID is idempotent when Session and type match: the first admission wins, and retried payload, metadata, and delivery are ignored. After delivery, retry reconciliation uses the projected message and does not require enqueue history. Cross-Session and cross-type reuse fail. Compaction and move controls retain operation-specific conflict behavior.
+复用会话 ID 会采用已有会话。复用用户或合成收件箱条目的 ID，在会话和类型一致时具有幂等性：以首次接纳为准，重试的载荷、元数据和投递设置被忽略。投递后，重试核对使用已投影的消息，不需要入队历史。跨会话或跨类型复用会失败。压缩和移动控制保留各自操作的冲突行为。
 
-`resume` controls scheduling, not durability:
+`resume` 控制调度，而非持久化：
 
-- Omitted or `true` records the input, then schedules `SessionExecution.wake(sessionID)`.
-- `false` records the input without scheduling execution.
+- 省略或设为 `true` 时，记录输入后调度 `SessionExecution.wake(sessionID)`。
+- 设为 `false` 时，只记录输入，不调度执行。
 
-Delivery is explicit:
+投递方式明确区分：
 
-- `steer` is the default. Steers deliver in enqueue order at the next Safe Step Boundary. Delivery stops before a compaction or move control item.
-- `queue` remains pending while the Session can continue. At an idle boundary, steers still take priority; otherwise one queued item delivers, followed by any steers that arrived during delivery. The runner then reevaluates continuation before another queued item.
+- `steer`（引导）是默认方式。引导项在下一个安全步骤边界按入队顺序投递，遇到压缩或移动控制项前停止。
+- `queue`（排队）在会话仍可继续时保持待处理。在空闲边界，引导项仍优先；若没有，则投递一个排队项，然后投递在此期间到达的引导项。运行器重新判断是否继续，再处理下一个排队项。
 
-Promoting new user input resets the selected agent's step allowance. A batch of steers resets it once.
+将新用户输入提升为当前输入会重置所选智能体的步骤额度。一批引导项只重置一次。
 
-Manual compaction and Session movement use the same inbox as control items. Each request has its own inbox identity and delivery mode. A control item forms a delivery boundary so later steers do not cross it.
+手动压缩和会话移动作为控制项使用同一收件箱。每个请求都有自己的收件箱标识和投递模式。控制项形成投递边界，后续引导项不能越过它。
 
-## Session Operations Own Admission Policy
+## 会话操作负责接纳策略
 
-Core's ID-addressed Session facade delegates prompt, synthetic, compaction, pending-input, shell, revert, execution controls, renaming, agent/model selection, viewed acknowledgements, and message lookup/editing to the ID-bound Session values in `session/session.ts`. Those operations own request idempotency, admission ordering, wake policy, and per-Session state-change rules. The facade supplies lazy Location services; the lower operations do not depend on `LocationServiceMap` or call back into the facade. Collection operations and host-infrastructure routing remain in the facade. Project resolution persists the owning Project; Session does not repeat that write.
+Core 中按 ID 寻址的 Session 门面，将提示、合成输入、压缩、待处理输入、shell、还原、执行控制、重命名、智能体／模型选择、已查看确认，以及消息查询／编辑，委托给 `session/session.ts` 中绑定 ID 的 Session 值。这些操作负责请求幂等性、接纳顺序、唤醒策略和单会话状态变更规则。门面提供惰性 Location 服务；底层操作不依赖 `LocationServiceMap`，也不回调门面。集合操作和宿主基础设施路由仍留在门面中。项目解析负责持久化所属 Project，Session 不重复写入。
 
-The host acquires `Session.make` once within its host `Scope`, then selects ID-bound values through `forSession`. The factory captures that Scope for shell completion recording; it must outlive individual callers. The existing facade remains the Effect service; the lower factory does not introduce a second service or a Layer per Session ID.
+宿主在自己的 `Scope` 内获取一次 `Session.make`，再通过 `forSession` 选择绑定 ID 的值。工厂捕获该 Scope 用于记录 shell 完成结果，其生命周期必须长于单个调用者。现有门面仍是 Effect 服务；底层工厂不引入第二个服务，也不为每个会话 ID 创建 Layer。
 
 ```ts
 Effect.gen(function* () {
@@ -36,83 +36,83 @@ Effect.gen(function* () {
 })
 ```
 
-References share operation implementations, host services, and the existing execution coordinator. A Session value retains its ID, not a cached projection or permanently selected runner. Obtaining or discarding a value does not start or interrupt execution. Admission stays independently callable while execution is active.
+这些引用共享操作实现、宿主服务和现有执行协调器。Session 值只保留 ID，不缓存投影，也不永久绑定运行器。获取或丢弃该值不会启动或中断执行。执行活动期间，接纳仍可独立调用。
 
-User shell commands start immediately as background work without waiting for model execution or other user shells. They do not suppress prompt wakeups. The shell operation forks completion recording into the captured host Scope with `startImmediately: true` and joins that fiber, so caller cancellation does not cancel recording; closing the host Scope does. Shell started and ended events retain output in one shell entry. Completion and startup-failure notifications are admitted as synthetic input with `resume: false`, without waking execution. Shell services are resolved at startup, while Session events remain outside that Location context so movement does not pin them to the old Location.
+用户 shell 命令立即作为后台工作启动，不等待模型执行或其他用户 shell，也不会抑制提示唤醒。shell 操作以 `startImmediately: true` 将完成记录任务派生到捕获的宿主 Scope，并等待该 fiber，因此调用者取消不会取消记录；关闭宿主 Scope 则会取消。Shell 启动和结束事件将输出保留在同一个 shell 条目中。完成和启动失败通知以 `resume: false` 作为合成输入接纳，不唤醒执行。Shell 服务在启动时解析，而 Session 事件留在该 Location 上下文之外，避免移动后仍绑定旧 Location。
 
-Location services are acquired only when an operation needs them. In particular, retry reconciliation happens before prompt preparation, so an already-admitted input skips hooks and attachment resolution. Execution continues to resolve placement independently at drain start and after movement.
+只有操作需要时才获取 Location 服务。尤其是，重试核对在提示准备前进行，因此已接纳的输入会跳过钩子和附件解析。执行在开始处理收件箱和移动后，仍独立解析会话位置。
 
-`servicesFor` selects instance services from the saved placement. Each instance constructs `SessionPrompt.Service`, whose `prepare` method turns submitted input into a user inbox item without admitting it, committing a revert, or waking execution. It captures FSUtil, PluginSupervisor, PluginHooks, Image, and Skill; readiness is checked before hooks on every call. Prompt keeps early retry reconciliation outside preparation and invokes preparation interruptibly in the current instance. Lower Session does not depend directly on Database or FSUtil; its Location requirements are SessionPrompt, SessionRevert, Shell, and the PluginSupervisor still used by manual shell startup.
+`servicesFor` 根据保存的位置选择实例服务。每个实例构建 `SessionPrompt.Service`，其 `prepare` 方法将提交的输入转换为用户收件箱条目，但不接纳、不提交还原，也不唤醒执行。它捕获 FSUtil、PluginSupervisor、PluginHooks、Image 和 Skill，每次调用都在钩子运行前检查就绪状态。Prompt 将早期重试核对放在准备流程之外，并在当前实例中以可中断方式调用准备。底层 Session 不直接依赖 Database 或 FSUtil；其 Location 依赖是 SessionPrompt、SessionRevert、Shell，以及手动 shell 启动仍使用的 PluginSupervisor。
 
-Each instance constructs its `SessionRevert.Service` through `SessionRevert.make`, capturing Database, Bus, PluginSupervisor, and Snapshot. Stage and clear check plugin readiness on each invocation and require no service provisioning inside their implementations. Session methods select the current instance for each operation, so an ID-bound Session does not retain a previous instance's snapshots after movement. Commit uses only the host's captured Bus and does not acquire an instance.
+每个实例通过 `SessionRevert.make` 构建自己的 `SessionRevert.Service`，捕获 Database、Bus、PluginSupervisor 和 Snapshot。暂存和清除操作每次调用都检查插件就绪状态，其实现内部不需要再提供服务。Session 方法为每次操作选择当前实例，因此绑定 ID 的 Session 移动后不会保留旧实例的快照。提交仅使用宿主捕获的 Bus，不获取实例。
 
-`SessionInbox.Service` is host-scoped. Its node depends on Database and Bus, and its layer uses `SessionInbox.make` to capture those services and construct admission and pending-input commands that take only domain inputs. Its `list` method supplies the normal pending-input read without exposing Database to Session. `Session.make` and the facade's move admission consume the registered service rather than constructing separate command objects. The service is not Session-ID scoped and does not own execution. Its commands retain the existing shared inbox serialization lock. Standalone query helpers, transaction-facing projectors, and runner delivery retain their explicit database/Bus inputs. The layer compiler is unchanged.
+`SessionInbox.Service` 属于宿主作用域。其节点依赖 Database 和 Bus，其层通过 `SessionInbox.make` 捕获这些服务，并构建只接收领域输入的接纳和待处理输入命令。`list` 方法提供常规待处理输入读取，不向 Session 暴露 Database。`Session.make` 和门面的移动接纳使用已注册服务，不另建命令对象。此服务不是会话 ID 作用域，也不负责执行。其命令保留现有共享收件箱串行化锁。独立查询辅助函数、面向事务的投影器和运行器投递仍显式接收数据库／Bus 输入。层编译器保持不变。
 
-Inbox commands own identity and type checks and return typed `SessionInbox.LifecycleConflict` errors. Session operations translate these into their public operation-specific errors and decide whether to wake execution. The Bus/projector boundary still uses defects to abort invalid projections; Inbox translates only lifecycle conflicts, not unrelated defects. Pending-input mutation does not schedule execution itself: steering wakes after a successful mutation, while queueing and cancellation do not.
+收件箱命令负责标识和类型检查，并返回类型化的 `SessionInbox.LifecycleConflict` 错误。Session 操作将其转换为各公共操作的错误，并决定是否唤醒执行。Bus／投影器边界仍用 defects 终止无效投影；Inbox 仅转换生命周期冲突，不转换无关 defects。待处理输入修改本身不调度执行：成功改为引导后才唤醒，排队和取消则不唤醒。
 
-## Execution Is Process-Local
+## 执行局限于本进程
 
-`SessionExecution` is process-global and keyed only by Session ID. At drain start it loads the Session, enters its Location through `LocationServiceMap`, and invokes the Location-scoped runner. The runner, model resolution, tools, permissions, plugins, and filesystem remain Location-scoped.
+`SessionExecution` 是进程全局服务，只以会话 ID 为键。开始处理收件箱时，它加载会话，通过 `LocationServiceMap` 进入对应 Location，并调用 Location 作用域的运行器。运行器、模型解析、工具、权限、插件和文件系统仍属于 Location 作用域。
 
-`SessionRunCoordinator` provides the local ownership rules:
+`SessionRunCoordinator` 提供本地所有权规则：
 
-- Explicit resumes join the active execution for the same Session.
-- Repeated wakes coalesce into one follow-up drain.
-- Different Sessions run concurrently.
-- Interruption stops locally owned execution without deleting pending input.
+- 显式恢复会加入同一会话当前活动的执行。
+- 多次唤醒合并为一次后续收件箱处理。
+- 不同会话可并发运行。
+- 中断停止本进程拥有的执行，但不删除待处理输入。
 
-The public interrupt operation verifies that the durable Session exists. An unknown Session fails with `SessionNotFoundError`; a known Session that is idle, settled, or not locally owned is a no-op.
+公共中断操作验证持久化会话是否存在。未知会话以 `SessionNotFoundError` 失败；已知但空闲、已结束或不归本进程所有的会话不执行任何操作。
 
-`sessions.active()` snapshots busy periods currently owned by this process. Durable execution events and claims are historical and recovery records, not proof that this process is still live.
+`sessions.active()` 获取当前进程拥有的忙碌期快照。持久化执行事件和执行认领记录是历史与恢复记录，不能证明进程仍存活。
 
-Execution commits a write-ahead claim when a process-local busy period starts. Success, failure, and user interruption release the claim; shutdown interruption and unclean process death preserve it. On startup, managed Node and fetch runtimes resume claimed top-level Sessions, append a durable continuation instruction, and count recovery attempts. Recovery is bounded per claimed execution but does not guarantee exactly-once provider requests or tool effects.
+本进程的忙碌期开始时，执行会提交一条预写认领记录。成功、失败和用户中断会释放认领；关闭中断和非正常进程退出则保留。启动时，托管 Node 和 fetch 运行时恢复已认领的顶层会话，追加持久化继续指令，并统计恢复尝试。每次认领执行的恢复次数有上限，但不保证提供商请求或工具副作用恰好发生一次。
 
-## One Step May Have Several Physical Attempts
+## 一个步骤可能包含多次实际尝试
 
-Before each Step, the runner reloads Session History, resolves the selected agent and model, prepares instructions, and materializes tools. Most Steps make one Physical Attempt. Generic retry, continuation-state rejection, incomplete-stream continuation, or overflow-triggered compaction may make another attempt without promoting input again.
+每个步骤开始前，运行器重新加载会话历史，解析所选智能体和模型，准备指令并构建工具。多数步骤只有一次实际尝试。通用重试、继续状态被拒绝、不完整流的继续，或溢出触发的压缩，可能导致再次尝试，而不重新提升输入。
 
-Each complete local tool call is durable before side effects begin. Local calls start eagerly and may run concurrently, but terminal outcome publication remains serialized. Every local and hosted call reaches durable success or failure before the Step publishes its single terminal ended or failed event.
+每个完整的本地工具调用都在副作用开始前持久化。本地调用立即启动并可并发运行，但终态结果发布仍串行化。在步骤发布唯一的终态结束或失败事件前，每个本地和托管调用都必须达到持久化的成功或失败状态。
 
-Tool calls belong to their assistant message. A tool-call `id` is unique only within that Step, so durable tool events also carry `assistantMessageID`.
+工具调用归属于其助手消息。工具调用 `id` 仅在该步骤内唯一，因此持久化工具事件还携带 `assistantMessageID`。
 
-At drain start, orphan reconciliation fails tool calls still projected as streaming or running from an earlier process before further model work. It preserves the original assistant attribution and never directly replays ambiguous side effects.
+开始处理收件箱时，孤立调用核对会在继续模型工作前，将旧进程遗留、投影仍为流式接收或运行中的工具调用标记失败。它保留原始助手归属，绝不直接重放结果不明的副作用。
 
-After a local outcome, continuation reloads projected history and begins a new Step. The runner never delegates orchestration to an in-memory tool loop.
+本地调用产生结果后，继续执行会重新加载投影历史并开始新步骤。运行器绝不将编排委托给内存中的工具循环。
 
-## Retry Is Narrow And Observable
+## 重试范围有限且可观测
 
-Generic scheduled retry covers rate-limit and provider-internal failures, transport failures that are unsent or have unknown delivery, and provider output classified as an incomplete stream. The initial request plus at most four retries use jittered exponential backoff, increased when the provider supplies a longer retry delay.
+通用调度重试覆盖限流、提供商内部失败、未发送或投递状态未知的传输失败，以及被判定为不完整流的提供商输出。首次请求加最多四次重试采用带随机抖动的指数退避；提供商给出更长延迟时，退避时间相应增加。
 
-Before durable output, generic retries retain the logical step number and assistant message ID and do not consume another agent-step allowance. An incomplete stream after durable output instead preserves the failed partial assistant, adds a synthetic continuation instruction, and continues with a new assistant message ID under the same retry budget. Provider continuation rejection permits one immediate full-context rebuild without a scheduled-retry event. `session.retry.scheduled` records generic backoff; later activity or a terminal execution event clears projected retry state.
+持久化输出产生前，通用重试保留逻辑步骤编号和助手消息 ID，不额外消耗智能体步骤额度。持久化输出后出现不完整流，则保留失败的部分助手消息，添加合成继续指令，并在同一重试预算内使用新助手消息 ID 继续。提供商拒绝继续状态时，允许立即进行一次完整上下文重建，不产生调度重试事件。`session.retry.scheduled` 记录通用退避；后续活动或终态执行事件会清除投影的重试状态。
 
-A normalized content-filter finish fails the Step. Any partial streamed content remains visible.
+规范化后的内容过滤结束原因会使步骤失败。已流式输出的部分内容仍可见。
 
-## Instructions Are Value Deltas
+## 指令以值增量记录
 
-Instruction sync persists content-addressed values and may freeze rendered chronological prose. `session.instructions.updated { delta, text? }` maps each changed source key to a SHA-256 content hash, with the literal `"removed"` for observed absence. Canonical JSON bodies live once in the machine-local `instruction_blob` store. The projected `instruction_state` row supplies current and epoch-initial values during normal boundary processing. The runner explicitly combines built-ins, ambient discovery, selected-agent skill guidance, references, MCP guidance, and API-managed instruction entries. There is no instruction registry.
+指令同步持久化按内容寻址的值，并可冻结已渲染的时序文字。`session.instructions.updated { delta, text? }` 将每个变化的来源键映射到 SHA-256 内容哈希；检测到来源不存在时使用字面值 `"removed"`。规范 JSON 正文在本机 `instruction_blob` 存储中只保存一份。投影的 `instruction_state` 行在常规边界处理中提供当前值和周期初始值。运行器显式组合内置指令、环境发现、所选智能体技能指导、参考资料、MCP 指导及 API 托管指令条目，不存在指令注册表。
 
-Before each Physical Attempt that reaches model execution, the runner reads every source concurrently exactly once, hashes encoded values, and admits one delta atomically with its new blobs before input delivery. The initial delta must be complete; it carries no update text. An unavailable source blocks only that initial delta and otherwise silently retains the stored value. Request assembly renders the epoch baseline from stored values. Later changes render once at admission, freeze optional `text` in the durable event, and project that text as a chronological System message; clients display changed keys rather than privileged prose.
+每次进入模型执行的实际尝试前，运行器对各来源恰好并发读取一次，计算编码值的哈希，并在输入投递前将一个增量及其新 blob 原子接纳。初始增量必须完整，且不携带更新文字。来源不可用时，仅阻塞初始增量；后续则静默保留已存值。请求组装根据存储值渲染周期基线。后续变化在接纳时只渲染一次，将可选 `text` 冻结在持久化事件中，并投影为按时间排列的 System 消息；客户端展示变化的键，而非具有特权的指令文字。
 
-An instruction epoch spans completed compactions. `session.compaction.ended` moves the epoch start to its exact sequence, making current values initial, without reading sources or authoring an instruction event. Session movement retains state so destination changes become chronological updates; committed revert retains state unless it removed an instruction update, in which case it clears state so the next boundary establishes a fresh baseline. A fork copies messages only through its selected boundary but adopts the parent's newest instruction values as its baseline. Model selection affects request assembly but is not itself an instruction source.
+指令周期以已完成的压缩为边界。`session.compaction.ended` 将周期起点移动到自身的精确序号，把当前值变为初始值，不读取来源，也不编写指令事件。会话移动保留状态，因此目的地变化会成为时序更新；提交还原时也保留状态，除非还原移除了指令更新，此时清除状态，让下一边界建立新基线。分叉仅复制所选边界之前的消息，但采用父会话最新指令值作为基线。模型选择影响请求组装，但本身不是指令来源。
 
-## Compaction Rebuilds Active History
+## 压缩重建活动历史
 
-Before each Step, the runner estimates the complete model-visible request against the selected model's context window and reserved output headroom. When compaction is enabled, model limits are known, and enough older Session History is available, the runner may store a structured rolling summary plus bounded recent context instead of sending an over-budget request.
+每个步骤前，运行器根据所选模型的上下文窗口和预留输出空间，估算完整模型可见请求的大小。当启用压缩、模型限制已知且有足够旧会话历史时，运行器可存储结构化滚动摘要和有大小限制的近期上下文，而非发送超预算请求。
 
-The full transcript remains durable. Active model history after the compaction boundary contains the summary and retained recent context; provider-native continuation state does not cross that boundary.
+完整对话记录仍持久保存。压缩边界之后的活动模型历史包含摘要和保留的近期上下文；提供商原生继续状态不会跨越该边界。
 
-If automatic compaction is enabled and the provider reports context overflow before durable assistant output or tool execution, the runner may perform one overflow-triggered compaction and rebuild the same logical Step. A second overflow, any overflow after durable output, or an overflow when automatic compaction is disabled is terminal.
+如果启用自动压缩，且提供商在助手输出持久化或工具执行前报告上下文溢出，运行器可进行一次溢出触发的压缩，并重建同一逻辑步骤。第二次溢出、持久化输出后的任何溢出，或禁用自动压缩时的溢出，都会终止执行。
 
-## Durable Events Are Session-Scoped
+## 持久化事件属于会话作用域
 
-`sessions.log({ sessionID, after?, follow? })` verifies the Session and reads public durable Session events after an exclusive aggregate sequence. With `follow: true`, it subscribes before replay and emits one synchronization marker at the captured watermark before live durable events continue.
+`sessions.log({ sessionID, after?, follow? })` 验证会话，并读取指定聚合序号之后（不含该序号）的公共持久化会话事件。`follow: true` 时，先订阅再重放，在捕获的水位处发出一个同步标记，然后继续发送实时持久化事件。
 
-Live-only text, reasoning, tool-input, and compaction deltas are intentionally absent from replay. The instance-wide live event stream has different schemas and no replay guarantee.
+仅实时存在的文本、推理、工具输入和压缩增量，按设计不参与重放。实例级实时事件流使用不同 schema，且不保证重放。
 
-There is no separate finite Session-history endpoint. Request/response consumers use authoritative Session projections such as messages, pending input, and context; replay consumers use the durable log.
+没有单独的有限会话历史端点。请求／响应消费者使用消息、待处理输入和上下文等权威会话投影；重放消费者使用持久化日志。
 
-## Recovery Boundaries Stay Explicit
+## 恢复边界保持明确
 
-An advisory wake is not itself crash recovery. Crash recovery is driven by a write-ahead execution claim that survives without a releasing terminal. Startup recovery resumes claimed top-level Sessions from durable projected history with bounded attempt accounting. It fails stale running tool projections before continuing, but it cannot prove whether an interrupted external operation already took effect and does not guarantee exactly-once provider or tool behavior.
+建议性唤醒本身不是崩溃恢复。崩溃恢复由预写执行认领驱动：如果没有释放认领的终态，该记录会保留。启动恢复从持久化投影历史恢复已认领的顶层会话，并限制尝试次数。继续前会将过期的运行中工具投影标记失败，但无法证明中断的外部操作是否已生效，也不保证提供商或工具行为恰好发生一次。
 
-Event replay ownership is separate from Session execution ownership. Local execution remains process-owned until clustering introduces an explicit placement and fencing protocol.
+事件重放所有权与会话执行所有权分离。在集群引入明确的位置分配和隔离令牌协议前，本地执行仍归进程所有。

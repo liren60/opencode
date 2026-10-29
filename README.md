@@ -1,3 +1,5 @@
+# OpenCode 项目简介
+
 <p align="center">
   <a href="https://opencode.ai">
     <picture>
@@ -7,7 +9,7 @@
     </picture>
   </a>
 </p>
-<p align="center">The open source AI coding agent.</p>
+<p align="center">开源 AI 编码助手。</p>
 <p align="center">
   <a href="https://opencode.ai/discord"><img alt="Discord" src="https://img.shields.io/discord/1391832426048651334?style=flat-square&label=discord" /></a>
   <a href="https://www.npmjs.com/package/@opencode/cli"><img alt="npm" src="https://img.shields.io/npm/v/@opencode/cli?style=flat-square" /></a>
@@ -15,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="README.md">English</a> |
+  <a href="README.md">中文（默认）</a> |
   <a href="README.zh.md">简体中文</a> |
   <a href="README.zht.md">繁體中文</a> |
   <a href="README.ko.md">한국어</a> |
@@ -43,7 +45,7 @@
 
 ---
 
-### Installation
+### 安装
 
 ```bash
 # YOLO
@@ -60,13 +62,13 @@ nix run github:anomalyco/opencode  # Nix
 ```
 
 > [!TIP]
-> Remove versions older than 0.1.x before installing.
+> 安装前请移除早于 0.1.x 的版本。
 
-### Desktop App (BETA)
+### 桌面应用（测试版）
 
-OpenCode is also available as a desktop application. Download it from [opencode.ai/download](https://opencode.ai/download).
+OpenCode 也提供桌面应用，可从 [opencode.ai/download](https://opencode.ai/download) 下载。
 
-| Platform              | Download                           |
+| 平台                  | 下载                               |
 | --------------------- | ---------------------------------- |
 | macOS (Apple Silicon) | `opencode-desktop-mac-arm64.dmg`   |
 | macOS (Intel)         | `opencode-desktop-mac-x64.dmg`     |
@@ -78,37 +80,37 @@ OpenCode is also available as a desktop application. Download it from [opencode.
 brew install --cask opencode-desktop
 ```
 
-#### Installation Directory
+#### 安装目录
 
-The install script installs OpenCode to `$HOME/.opencode/bin`.
+安装脚本将 OpenCode 安装到 `$HOME/.opencode/bin`。
 
-### Agents
+### 智能体
 
-OpenCode includes two built-in agents you can switch between with the `Tab` key.
+OpenCode 内置两个智能体，可使用 `Tab` 键切换。
 
-- **build** - Default, full-access agent for development work
-- **plan** - Read-only agent for analysis and code exploration
-  - Denies file edits by default
-  - Asks permission before running bash commands
-  - Ideal for exploring unfamiliar codebases or planning changes
+- **build** — 默认智能体，拥有完整访问权限，用于开发工作
+- **plan** — 只读智能体，用于分析和代码探索
+  - 默认拒绝文件编辑
+  - 运行 bash 命令前请求权限
+  - 适合探索陌生代码库或规划修改
 
-Also included is a **general** subagent for complex searches and multistep tasks.
-This is used internally and can be invoked using `@general` in messages.
+还内置了用于复杂搜索和多步骤任务的 **general** 子智能体。
+它供内部使用，也可在消息中通过 `@general` 调用。
 
-Learn more about [agents](https://opencode.ai/v2/docs/agents).
+了解更多[智能体信息](https://opencode.ai/v2/docs/agents)。
 
-### Documentation
+### 文档
 
-For more info on how to configure OpenCode, [**head over to our docs**](https://opencode.ai/v2/docs).
+有关 OpenCode 配置的更多信息，请[**查看文档**](https://opencode.ai/v2/docs)。
 
-### Contributing
+### 参与贡献
 
-If you're interested in contributing to OpenCode, please read our [contributing docs](./CONTRIBUTING.md) before submitting a pull request.
+如果有兴趣为 OpenCode 做贡献，请在提交合并请求前阅读[贡献指南](./CONTRIBUTING.md)。
 
-### Building on OpenCode
+### 基于 OpenCode 开发
 
-If you are working on a project that's related to OpenCode and is using "opencode" as part of its name, for example "opencode-dashboard" or "opencode-mobile", please add a note to your README to clarify that it is not built by the OpenCode team and is not affiliated with us in any way.
+如果你的项目与 OpenCode 相关，且名称包含 “opencode”（例如 “opencode-dashboard” 或 “opencode-mobile”），请在 README 中注明：该项目并非由 OpenCode 团队开发，与我们没有任何关联。
 
 ---
 
-**Join our community** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)
+**加入社区** [Discord](https://discord.gg/opencode) | [X.com](https://x.com/opencode)

@@ -48,7 +48,12 @@ export function createSessionMutations(remove: (sessionID: string) => Promise<vo
         })
     },
     deleted(sessionID: string) {
-      setStore("session", (current) => current.filter((mutation) => mutation.sessionID !== sessionID))
+      // The summary index can still contain this session after the live store removes it.
+      // Keep confirmed deletions applied to cached and in-flight lists as well.
+      setStore("session", (current) => [
+        ...current.filter((mutation) => mutation.sessionID !== sessionID),
+        { id: uuid(), type: "remove", sessionID },
+      ])
     },
   }
 }

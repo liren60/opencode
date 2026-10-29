@@ -1,0 +1,52 @@
+export default {
+  title: "Project Center",
+  description: "Read project documentation and cite sources in your conversation. Repositories stay read-only.",
+  open: "Open Project Center",
+  settings: "Project Center settings",
+  registry: "Project registry file",
+  registryHint:
+    "Leave empty to discover Downloads/PG/Reni_ProjectCenter/web/wiki-projects.json. Relative repository paths resolve from the Project Center folder, not the application installation.",
+  save: "Save",
+  saved: "Saved",
+  unavailable:
+    "Project Center needs the desktop extension's local file reader. It is unavailable on the web or while the reader is disabled.",
+  localOnly:
+    "These sources belong to this computer. For a remote session, select the corresponding local project explicitly.",
+  automatic: "Follow current project",
+  all: "All registered projects",
+  unbound: "No registered project matches this session. Select a project or search all projects.",
+  binding: "Reading registered sources from {{name}}",
+  search: "Search document titles and content",
+  history: "Include historical and unverified VC5 documents",
+  plans: "Plans only",
+  refresh: "Refresh sources",
+  loading: "Reading sources…",
+  failed:
+    "Unable to read the Project Center registry or documents. Check the registry path and repository permissions, then retry.",
+  retry: "Retry",
+  empty: "No matching documents.",
+  "results.one": "{{count}} document",
+  "results.other": "{{count}} documents",
+  limited: "Showing the first {{limit}} results. Refine the search to find more.",
+  pick: "Select a document to read it.",
+  cite: "Cite document in conversation",
+  citeSelection: "Cite selected text",
+  cited: "Source attached to the current draft. Review it and send when ready.",
+  citeLimit: "This document exceeds the citation limit. Select a passage of up to 12,000 characters instead.",
+  historical: "Historical or unverified source — not current VC5 API guidance.",
+  source: "Source: {{project}} / {{path}}",
+  declaration: "Document declaration: {{status}}",
+  planNotice:
+    "Plans describe intended work. Implementation and acceptance evidence remain in the original project; no completion percentage is inferred here.",
+  readFailed: "This source is missing, unreadable, or outside the registered document boundaries.",
+  linkFailed: "This link does not resolve to a registered document or supported attachment.",
+  download: "Save attachment",
+  sourceFingerprint: "Last-read source fingerprint (SHA-256)",
+  snapshotFingerprint: "Reference snapshot fingerprint (SHA-256)",
+  snapshotMatch: "The reference snapshot matches the last-read source. Refresh sources to check for changes on disk.",
+  snapshotChanged:
+    "The reference snapshot differs from the last-read source. Existing draft and message quotes are unchanged. Review the source before citing it again.",
+  snapshotUnchecked: "The source is loading or unavailable. The reference snapshot cannot be checked yet.",
+  snapshotUnknown:
+    "This older reference link has no snapshot fingerprint. Its source can be read, but a match cannot be verified.",
+}

@@ -1,8 +1,8 @@
-import { expect, test } from "bun:test"
+import { afterAll, beforeAll, expect, test } from "bun:test"
 import { mkdir, mkdtemp, rm } from "node:fs/promises"
 import { tmpdir } from "node:os"
 import path from "node:path"
-import { baselineReady, hash, startSlot, verifySlot } from "./renicode-launcher-runtime"
+import { baselineReady, hash, spawnDesktop, startSlot, verifySlot } from "./renicode-launcher-runtime"
 import { RenicodeLauncherStore, type Slot } from "../src/main/lifecycle/renicode-launcher-store"
 import { renicodeEnvironment } from "../src/main/lifecycle/renicode-profile"
 
@@ -15,6 +15,61 @@ const baseline: Slot = {
   files: "{}",
   reporting: 0,
 }
+
+const windowRoot = process.platform === "win32" ? await mkdtemp(path.join(tmpdir(), "renicode-window-")) : undefined
+
+beforeAll(async () => {
+  if (!windowRoot) return
+  const compiler = Bun.spawn(
+    [
+      "powershell.exe",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      "Add-Type -TypeDefinition (Get-Content -Raw -LiteralPath $env:RENICODE_WINDOW_SOURCE) -OutputAssembly $env:RENICODE_WINDOW_EXE -OutputType WindowsApplication",
+    ],
+    {
+      env: {
+        ...process.env,
+        RENICODE_WINDOW_SOURCE: path.join(import.meta.dirname, "fixtures/launcher-window.cs"),
+        RENICODE_WINDOW_EXE: path.join(windowRoot, "Renicode.exe"),
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+      windowsHide: true,
+    },
+  )
+  const [stdout, stderr, code] = await Promise.all([
+    new Response(compiler.stdout).text(),
+    new Response(compiler.stderr).text(),
+    compiler.exited,
+  ])
+  expect(code, `${stdout}\n${stderr}`).toBe(0)
+})
+
+afterAll(async () => {
+  if (windowRoot) await rm(windowRoot, { recursive: true, force: true })
+})
+
+// ShowWindow's STARTUPINFO override is a Windows-only contract. A real native GUI
+// catches windowsHide suppressing Electron's first window; package checks cannot.
+test.skipIf(process.platform !== "win32").each([
+  { name: "baseline", reporting: 0, managed: true },
+  { name: "candidate", reporting: 1, managed: true },
+  { name: "second instance", reporting: 1, managed: false },
+])("$name desktop launch permits the first native window to be visible", async (row) => {
+  const store = new RenicodeLauncherStore(":memory:")
+  try {
+    const slot = { ...baseline, directory: windowRoot!, reporting: row.reporting }
+    const result = row.managed ? startSlot(store, slot, path.join(windowRoot!, "launcher.sqlite")) : undefined
+    if (result) expect(result.status).toBe("started")
+    const child = result?.status === "started" ? result.child : spawnDesktop(slot)
+    expect(await child.exited).toBe(0)
+    expect(await Bun.file(path.join(windowRoot!, "visible.txt")).text()).toBe("visible")
+  } finally {
+    store.close()
+  }
+})
 
 test.each(["intact", "missing", "changed"] as const)("%s package is checked before launch", async (state) => {
   const root = await mkdtemp(path.join(tmpdir(), "renicode-integrity-"))

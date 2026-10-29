@@ -97,6 +97,13 @@ const StoredLocaleSchema = Schema.Struct({
 
 const INTL = DESKTOP_NATIVE_LOCALE_TAGS
 
+const SESSION_TIME_UNITS = [
+  { unit: "year", duration: 365 * 86_400_000 },
+  { unit: "day", duration: 86_400_000 },
+  { unit: "hour", duration: 3_600_000 },
+  { unit: "minute", duration: 60_000 },
+] as const
+
 const base: Dictionary = brandDictionary({ ...en, ...dict })
 
 const dicts = new Map<Locale, Dictionary>([["en", base]])
@@ -304,6 +311,18 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
 
     const list = (items: readonly JSX.Element[]) => localizedListParts(intl(), items)
 
+    const sessionDate = createMemo(() => new Intl.DateTimeFormat(intl(), { dateStyle: "medium", timeStyle: "short" }))
+
+    const sessionAge = createMemo(
+      () =>
+        new Map(
+          SESSION_TIME_UNITS.map((item) => [
+            item.unit,
+            new Intl.NumberFormat(intl(), { style: "unit", unit: item.unit, unitDisplay: "narrow" }),
+          ]),
+        ),
+    )
+
     const label = (value: Locale) => DESKTOP_NATIVE_LABELS[value]
 
     createEffect(() => {
@@ -339,6 +358,19 @@ export const { use: useLanguage, provider: LanguageProvider } = createSimpleCont
       pluralForm,
       rich,
       list,
+      sessionTime(timestamp: number, now: number) {
+        const elapsed = Math.max(0, now - timestamp)
+        const unit = SESSION_TIME_UNITS.find((unit) => elapsed >= unit.duration)
+
+        return {
+          compact: unit
+            ? sessionAge()
+                .get(unit.unit)!
+                .format(Math.floor(elapsed / unit.duration))
+            : t("sidebar.session.now"),
+          full: t("sidebar.session.activity", { date: sessionDate().format(timestamp) }),
+        }
+      },
       setLocale(next: Locale) {
         setStore("locale", normalizeLocale(next))
       },

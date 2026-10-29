@@ -1,12 +1,12 @@
-# Continuous improvement
+# 持续改进
 
-An experimental, opt-in OpenCode V2 plugin for **reviewed project memory → real verification evidence → fixed-case comparison**. It does not train model weights, rewrite `AGENTS.md`, raise permissions or run background learning.
+这是一个实验性的 OpenCode V2 插件，需要主动配置才能启用，用于实现 **经审核的项目记忆 → 真实验证证据 → 固定用例对比**。它不会训练模型权重、重写 `AGENTS.md`、提升权限或在后台学习。
 
-The staged development plan and acceptance criteria are in [PLAN.md](PLAN.md).
+分阶段开发计划和验收标准见 [PLAN.md](PLAN.md)。
 
-## Enable locally
+## 在本地启用
 
-From this repository's root, add the package to a project `opencode.jsonc`, preserving existing settings:
+在本仓库根目录的项目配置 `opencode.jsonc` 中添加此包，并保留已有设置：
 
 ```jsonc
 {
@@ -15,13 +15,13 @@ From this repository's root, add the package to a project `opencode.jsonc`, pres
 }
 ```
 
-Paths are relative to the configuration file. If using `.opencode/opencode.jsonc`, use `../packages/plugins/improvement`. This package exports TypeScript directly and needs no build step. It is not loaded just because it exists in the repository; no installation command for an unpublished Git revision is implied here.
+路径相对于配置文件。如果使用 `.opencode/opencode.jsonc`，请填写 `../packages/plugins/improvement`。此包直接导出 TypeScript，不需要构建。仅仅将它放在仓库里不会自动加载；这里也没有提供安装未发布 Git 修订版本的命令。
 
-Config changes reload automatically. Remove this plugin entry to unload it; do not restart the service. Unloading removes its tools and context hooks but retains stored records. Approval remains governed by existing permission rules: explicit denies are respected, and memory decisions and task feedback always request review unless denied.
+配置变更会自动重新加载。删除此插件条目即可卸载，无需重启服务。卸载会移除插件的工具和上下文钩子，但保留已存储的记录。审批仍遵循现有权限规则：明确的拒绝规则始终有效；记忆决策和任务反馈若未被拒绝，都必须请求审核。
 
-## Memory workflow
+## 记忆工作流程
 
-Ask the agent to remember an explicit correction. It must cite an actual user message ID and an exact quote from that message:
+让智能体记住一条明确的纠正意见。它必须引用真实的用户消息 ID，并逐字引用该消息中的原文：
 
 ```ts
 const note = await tools.improvement.memory_propose({
@@ -32,21 +32,21 @@ const note = await tools.improvement.memory_propose({
 return note
 ```
 
-The note is initially `pending`. The agent can request activation, but the user must review the content and source in the permission request:
+记忆条目最初处于 `pending`（待审核）状态。智能体可以申请激活，但用户必须在权限请求中审核其内容和来源：
 
 ```ts
 return await tools.improvement.memory_review({ id: "returned-note-id", decision: "activate" })
 ```
 
-- `memory_list({})` includes all note states in the current project.
-- `memory_review` accepts `activate`, `reject`, `suspend`, or `forget`.
-- Only `active` notes enter the next primary model context. Up to 20 notes and 8,000 content characters are included, newest first, with an omitted count.
-- An exact quote proves provenance, not that the proposed paraphrase is correct. Review the meaning before approving.
-- Suspending or forgetting stops future recall; it cannot remove text already sent to a model or erase the original user message.
+- `memory_list({})` 列出当前项目中所有状态的记忆条目。
+- `memory_review` 支持 `activate`（激活）、`reject`（拒绝）、`suspend`（暂停）和 `forget`（遗忘）。
+- 只有 `active`（已激活）条目会进入下一次主模型上下文。最多包含 20 条、共 8,000 个正文字符，按最新优先排列，并注明省略数量。
+- 逐字引用只能证明来源，不能证明提议的转述准确。批准前请核对含义。
+- 暂停或遗忘会停止后续调用，但无法撤回已发送给模型的文本，也不会删除原始用户消息。
 
-## Task verification
+## 任务验证
 
-Declare meaningful checks, implement the change, and then run every check. Examples below are Code Mode snippets, not commands for an external JavaScript interpreter:
+先声明有实际意义的检查，再实现修改，最后运行每一项检查。以下示例是 Code Mode 代码片段，不是外部 JavaScript 解释器命令：
 
 ```ts
 return await tools.improvement.task_start({
@@ -59,7 +59,7 @@ return await tools.improvement.task_start({
 })
 ```
 
-Use the returned task ID, and check the report before claiming verification:
+使用返回的任务 ID，并在声称已验证之前检查报告：
 
 ```ts
 await tools.improvement.verify({ taskID: "returned-task-id", checkID: "regression" })
@@ -67,26 +67,26 @@ await tools.improvement.verify({ taskID: "returned-task-id", checkID: "types" })
 return await tools.improvement.task_report({ taskID: "returned-task-id" })
 ```
 
-| Status       | Meaning                                                                                          |
+| 状态         | 含义                                                                                             |
 | ------------ | ------------------------------------------------------------------------------------------------ |
-| `passed`     | All declared checks have current, completed Shell results with exit 0, no timeout and no signal. |
-| `failed`     | A current completed check failed, timed out or was signalled.                                    |
-| `unverified` | A check has no recognized completion, or its latest attempt was rejected/interrupted.            |
-| `stale`      | An observed edit occurred after an attempt began. Rerun the checks.                              |
+| `passed`     | 所有声明的检查都有有效且已完成的 Shell 结果：退出码为 0、未超时、未被信号终止。 |
+| `failed`     | 某项当前已完成的检查失败、超时或被信号终止。 |
+| `unverified` | 某项检查没有可识别的完成结果，或其最新尝试被拒绝／中断。 |
+| `stale`      | 检查尝试开始后检测到了编辑操作，需要重新运行检查。 |
 
-`verify` accepts no replacement command or model-supplied exit code. It delegates to the existing Shell executor, including Shell permission checks, and preserves its output. Missing Shell tools and rejected/interrupted retries do not reuse a previous success. Tasks belong to the session that created them.
+`verify` 不接受替代命令或模型提供的退出码。它委托现有 Shell 执行器运行检查，沿用 Shell 权限检查，并保留其输出。Shell 工具缺失、重试被拒绝或中断时，不会沿用之前的成功结果。任务归属于创建它的会话。
 
-Built-in `edit`, `write` and `patch` calls invalidate project evidence before and after execution, conservatively including unsuccessful edits. After an external editor, a file-changing Shell command or another mutation tool, explicitly invalidate:
+内置 `edit`、`write` 和 `patch` 调用会在执行前后使项目证据失效；出于保守原则，失败的编辑也算在内。使用外部编辑器、修改文件的 Shell 命令或其他修改工具后，请显式使证据失效：
 
 ```ts
 return await tools.improvement.invalidate({})
 ```
 
-This is command evidence, not an enforced completion gate or proof of semantic correctness. Choose checks that actually exercise the requirement; `echo ok` cannot validate a code change. Backgrounded commands remain unverified. There is no filesystem watcher, OS sandbox, automatic rollback or cost accounting in this version.
+这里记录的是命令执行证据，不是强制完成门槛，也不能证明语义正确。应选择真正覆盖需求的检查；`echo ok` 无法验证代码修改。后台命令始终处于未验证状态。此版本没有文件系统监视器、操作系统沙箱、自动回滚或成本核算。
 
-## Fixed-case evaluation
+## 固定用例评估
 
-Configure a suite before starting either variant. Each case has a unique ID, a fixed objective and 1–20 checks; a suite supports up to 50 cases:
+在开始运行任一实验版本前，先配置用例集。每个用例有唯一 ID、固定目标和 1–20 项检查；每个用例集最多支持 50 个用例：
 
 ```jsonc
 {
@@ -114,13 +114,13 @@ Configure a suite before starting either variant. Each case has a unique ID, a f
 }
 ```
 
-Run the same cases from equivalent starting states, using distinct labels such as `baseline-1` and `candidate-1`. Keep model, environment and check semantics comparable. Case tasks cannot override the configured objective or checks:
+从等价的初始状态运行相同用例，并使用不同标签，例如 `baseline-1`（基线）和 `candidate-1`（候选）。模型、环境和检查语义应保持可比。用例任务不能覆盖配置中的目标或检查：
 
 ```ts
 return await tools.improvement.task_start({ caseID: "parser-regression", variant: "baseline-1" })
 ```
 
-After verification, request user review of the actual outcome. Feedback stores a snapshot of verification status and elapsed completed-attempt time, independently of the outcome:
+验证后，请用户审核实际结果。反馈会保存验证状态和已完成尝试耗时的快照，二者与用户对结果的评价独立记录：
 
 ```ts
 return await tools.improvement.feedback({
@@ -130,23 +130,23 @@ return await tools.improvement.feedback({
 })
 ```
 
-Only approved feedback counts. A later approved feedback call replaces the previous feedback for that task. A second task for the same case/variant is a duplicate, not a replacement; use fresh variant labels for a new experiment.
+只有获批的反馈才计入评估。同一任务后续获批的反馈会替换之前的反馈。同一用例／实验标签的第二个任务属于重复项，而不是替代项；新实验请使用新的标签。
 
 ```ts
 return await tools.improvement.evaluate({ baseline: "baseline-1", candidate: "candidate-1" })
 ```
 
-The result lists missing, duplicate and suite-mismatched runs. Only complete matching suites expose candidate-minus-baseline deltas for verified and accepted rates. Verification elapsed time is also reported, but model latency, token cost and quality scores are not fabricated. This is a descriptive small-sample comparison, not evidence of general model improvement; the plugin does not automatically execute the cases or prove equivalent starting states.
+结果会列出缺失、重复和用例集不匹配的运行记录。只有完整且匹配的用例集才会展示验证率和接受率的“候选减基线”差值。报告还包含验证耗时，但不会捏造模型延迟、token 成本或质量评分。这只是小样本的描述性对比，不是模型整体能力提升的证据；插件不会自动执行用例，也不会证明初始状态等价。
 
-## Storage and privacy
+## 存储与隐私
 
-Records use OpenCode's local durable plugin storage, further separated by a hash of the canonical project path. Worktrees of the same project share memory and edit invalidation. Renaming the canonical project path creates a different namespace.
+记录使用 OpenCode 的本地持久化插件存储，并通过项目规范路径的哈希进一步隔离。同一项目的工作树共享记忆和编辑失效状态。重命名项目规范路径会产生新的命名空间。
 
-The plugin adds no telemetry or remote service. However, approved notes are sent to the configured model provider as context. Notes, source quotes, task commands, evidence metadata and feedback persist locally; there is no automatic retention limit or bulk purge UI yet. Avoid storing secrets. `forget` deletes the plugin note only, not existing session history, model-provider records or related task feedback.
+插件不增加遥测或远程服务，但获批的记忆会作为上下文发送给配置的模型提供商。记忆、来源引用、任务命令、证据元数据和反馈会保存在本地；目前没有自动保留期限或批量清理界面。请勿存储秘密信息。`forget` 只删除插件记忆，不会删除已有会话历史、模型提供商记录或相关任务反馈。
 
-## Development checks
+## 开发检查
 
-Run from `packages/plugins/improvement`:
+在 `packages/plugins/improvement` 目录运行：
 
 ```sh
 bun typecheck
@@ -154,10 +154,10 @@ bun run typecheck:tsc
 bun test --only-failures
 ```
 
-The real-host integration tests live in Core; from `packages/core`:
+真实宿主集成测试位于 Core；在 `packages/core` 目录运行：
 
 ```sh
 bun run script/test.ts test/plugin-improvement.test.ts
 ```
 
-They exercise real approval, denied activation, user-quote validation, real Shell execution/denial, real write invalidation, fixed cases, durable project isolation and storage pagination. They verify the plugin mechanics, not a real baseline/candidate coding-quality improvement.
+这些测试覆盖真实审批、激活被拒绝、用户原文校验、真实 Shell 执行／拒绝、真实写入导致证据失效、固定用例、持久化项目隔离和存储分页。它们验证的是插件机制，而非真实基线／候选实验中的编码质量提升。

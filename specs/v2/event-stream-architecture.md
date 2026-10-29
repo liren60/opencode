@@ -1,8 +1,8 @@
-# V2 Event Stream Architecture
+# V2 事件流架构
 
-## Decision
+## 决策
 
-The public HTTP event stream uses one Server-scoped encoded feed with one independently bounded queue per connection.
+公共 HTTP 事件流使用一个 Server 作用域的编码事件源，每个连接拥有独立且容量有限的队列。
 
 ```text
 Core EventV2.listen()
@@ -22,127 +22,127 @@ Server EventFeed
  HTTP A    HTTP B    HTTP C
 ```
 
-Core owns event meaning, publication, persistence, typed observation, durable logs, replay, and transactional projection.
+Core 负责事件含义、发布、持久化、类型化观察、持久化日志、重放和事务投影。
 
-Server owns public event selection, wire encoding, bounded connection delivery, and subscriber lifecycle.
+Server 负责公共事件选择、传输编码、有界的连接投递和订阅者生命周期。
 
-Protocol continues to own the `OpenCodeEvent` SSE contract. Generated Promise and Effect clients remain unchanged.
+Protocol 继续负责 `OpenCodeEvent` SSE 契约。生成的 Promise 和 Effect 客户端保持不变。
 
-## Context
+## 背景
 
-Before this change, every `/api/event` connection called `EventV2.liveBounded`. Each call registered a Core callback listener and allocated a dropping queue of raw event payloads. Every HTTP connection then independently performed:
+此变更前，每个 `/api/event` 连接都调用 `EventV2.liveBounded`，注册一个 Core 回调监听器，并分配一个存放原始事件载荷、满时丢弃新项的队列。随后每个 HTTP 连接独立执行：
 
-1. Public-event filtering.
-2. `OpenCodeEvent` schema encoding.
-3. `JSON.stringify`.
-4. SSE framing.
-5. UTF-8 encoding.
+1. 公共事件过滤。
+2. `OpenCodeEvent` schema 编码。
+3. `JSON.stringify`。
+4. SSE 帧组装。
+5. UTF-8 编码。
 
-With `N` connected TUIs, schema and wire encoding therefore ran `N` times for every accepted event.
+因此，连接 `N` 个 TUI 时，每个接受的事件都会进行 `N` 次 schema 和传输编码。
 
-`liveBounded` was introduced before zero-argument `events.subscribe()` became the unified live interface. It stayed on deprecated `listen` because it provided a stronger contract than the shared unbounded Core PubSub: one slow subscriber could overflow and fail without blocking healthy subscribers.
+`liveBounded` 引入时，无参数的 `events.subscribe()` 尚未成为统一实时接口。它继续使用已弃用的 `listen`，因为其契约比共享的无界 Core PubSub 更强：单个慢订阅者可因溢出而失败，却不会阻塞正常订阅者。
 
-The global cross-location event stream is intentional. The endpoint is outside `LocationMiddleware`, and the TUI uses event location metadata to update state for multiple locations. The feed must not add request-location filtering.
+跨 Location 的全局事件流是有意设计。端点位于 `LocationMiddleware` 之外，TUI 使用事件位置元数据更新多个 Location 的状态。事件源不得添加按请求位置过滤的逻辑。
 
-## Delivery Law
+## 投递约束
 
-The Server feed preserves this law:
+Server 事件源保持以下约束：
 
-> A connection has an independent finite lag budget. Exceeding it terminates only that connection while publication and healthy connections continue in order.
+> 每个连接都有独立且有限的积压预算。超出预算只终止该连接，事件发布和正常连接仍按顺序继续。
 
-Each connection receives a `Queue.dropping` with capacity 4,096 accepted public frames.
+每个连接分配一个 `Queue.dropping`，容量为 4,096 个已接受的公共帧。
 
-When an offer returns `false`:
+入队操作返回 `false` 时：
 
-1. The queue is removed from the active subscriber registry immediately.
-2. The queue is failed with `SubscriberOverflowError`.
-3. The same frame is still offered to every other active queue.
-4. Core publication and the Server observer never suspend on that connection.
+1. 立即将该队列从活动订阅者注册表移除。
+2. 以 `SubscriberOverflowError` 使该队列失败。
+3. 仍尝试将同一帧送入其他所有活动队列。
+4. Core 发布和 Server 观察者绝不因该连接挂起。
 
-Previously accepted frames drain before the queue failure surfaces. The overflow-causing frame is not accepted by that connection.
+先前接受的帧会先被消费，随后才显现队列失败。引起溢出的帧不会被该连接接受。
 
-Internal Core events, `server.connected`, and heartbeats do not consume the queue capacity.
+Core 内部事件、`server.connected` 和心跳不占用该队列容量。
 
-## Why Independent Queues
+## 为什么使用独立队列
 
-The design was reviewed twice, including explicit consideration of one shared Effect PubSub of encoded frames.
+此设计经过两次评审，其中明确考虑过共享一个存放编码帧的 Effect PubSub。
 
-### Shared PubSub benefits
+### 共享 PubSub 的优点
 
-A shared PubSub stores each frame once and gives each subscriber a cursor. Its retained feed storage is proportional to maximum lag rather than the sum of every subscriber's lag.
+共享 PubSub 每帧只存一次，为每个订阅者提供游标。保留事件源的存储量与最大积压成正比，而非与所有订阅者积压之和成正比。
 
-### Shared PubSub costs
+### 共享 PubSub 的成本
 
-Effect's bounded PubSub strategies do not directly express independent subscriber failure:
+Effect 的有界 PubSub 策略无法直接表达独立订阅者失败：
 
-- `bounded` can suspend the shared publisher behind the slowest subscriber;
-- `dropping` rejects one publication for every subscriber when shared capacity is full;
-- `sliding` silently skips events while leaving the stale subscriber connected;
-- `unbounded` removes the structural memory bound.
+- `bounded` 可能让共享发布者因最慢的订阅者而挂起；
+- `dropping` 在共享容量满时对所有订阅者拒绝同一次发布；
+- `sliding` 静默跳过事件，但仍让落后的订阅者保持连接；
+- `unbounded` 不再提供结构性的内存上限。
 
-Independent eviction can be built on a dropping PubSub, but requires:
+可在 dropping PubSub 上构建独立驱逐机制，但需要：
 
-- retaining every subscription's child scope;
-- a separate typed overflow signal because subscription closure appears as interruption/completion;
-- serialization of registration, removal, eviction, and publication;
-- lag scans at capacity;
-- waiting for scope closure to release shared ring slots;
-- terminal handling if a supposedly impossible shared publish returns `false`;
-- immediate discard of the stale subscriber's previously accepted unread backlog.
+- 保留每个订阅的子作用域；
+- 单独的类型化溢出信号，因为订阅关闭表现为中断／完成；
+- 串行化注册、移除、驱逐和发布；
+- 达到容量时扫描积压；
+- 等待作用域关闭以释放共享环形缓冲槽位；
+- 对理论上不应发生的共享发布返回 `false` 进行终态处理；
+- 立即丢弃落后订阅者先前接受但尚未读取的积压。
 
-That is a custom multicast protocol layered over PubSub.
+这相当于在 PubSub 之上自建多播协议。
 
-The incremental benefit is queue-slot references, not encoded frame copies: every independent queue stores the same immutable encoded string reference. At 50 clients each retaining 4,096 frames, raw references are roughly 1.6 MiB before array overhead. HTTP runtime, TLS, kernel, proxy, and client buffers may dominate that cost.
+额外收益在于减少队列槽位引用，而非减少编码帧副本：各独立队列存储的是同一个不可变编码字符串的引用。50 个客户端各保留 4,096 帧时，不计数组开销，原始引用约占 1.6 MiB。HTTP 运行时、TLS、内核、代理和客户端缓冲的开销可能更大。
 
-The chosen queue design captures the dominant optimization, encode once, while retaining direct queue-local overflow semantics and a smaller failure domain.
+所选队列方案实现了主要优化——只编码一次，同时保留直接的队列局部溢出语义和更小的故障范围。
 
-Revisit shared PubSub storage only if measurements after shared encoding show queue reference retention or per-queue offers are material.
+只有共享编码后的测量表明队列引用保留量或逐队列入队成本显著时，才重新考虑共享 PubSub 存储。
 
-## Capacity
+## 容量
 
-The migration preserves the existing 4,096-event capacity.
+迁移保留现有的 4,096 事件容量。
 
-This is compatibility, not a claim that 4,096 is optimal. It is an event-count lag threshold, not a complete memory bound:
+这是兼容性选择，不表示 4,096 是最优值。它是按事件数计算的积压阈值，不是完整内存上限：
 
-- frames vary in size;
-- stream pulls may move batches into HTTP buffers before queue lag reflects them;
-- kernel and client buffers are outside Server accounting.
+- 帧大小不同；
+- 流拉取可能先将批次移到 HTTP 缓冲，使队列积压无法反映这部分占用；
+- 内核和客户端缓冲不在 Server 计量范围内。
 
-Do not raise capacity merely because frames are encoded once. A larger threshold retains stale clients longer.
+不要仅因为帧只编码一次就提高容量。更大的阈值会让落后客户端保留更久。
 
-Tune capacity separately using observed:
+根据以下实测数据单独调整容量：
 
-- public event rates and burst sizes;
-- healthy subscriber queue high-water marks;
-- encoded frame-size distribution;
-- overflow and reconnect frequency;
-- retained heap and RSS;
-- downstream drain duration under a stalled reader.
+- 公共事件速率和突发规模；
+- 正常订阅者队列的峰值水位；
+- 编码帧大小分布；
+- 溢出和重连频率；
+- 保留堆内存和常驻内存（RSS）；
+- 读取方停滞时下游排空所需时间。
 
-Add a byte budget only if measurements show event count is an inadequate memory safeguard.
+只有测量表明事件数量不足以保护内存时，才添加字节预算。
 
-## Feed Lifecycle
+## 事件源生命周期
 
-### Server scope
+### Server 作用域
 
-`EventFeed.layer` is built once with the Server handler graph. It registers one global Core listener outside request location middleware.
+`EventFeed.layer` 与 Server 处理器图一起构建一次，在请求位置中间件之外注册一个全局 Core 监听器。
 
-The listener is installed synchronously before the feed service is exposed. Public filtering, encoding, and nonblocking queue offers happen inline once per Core event. This avoids both a startup gap and an unbounded asynchronous ingress backlog.
+监听器在事件源服务暴露前同步安装。每个 Core 事件的公共过滤、编码和非阻塞入队都在调用内完成一次，避免启动期间的事件缺口和无界异步入口积压。
 
-Core invokes the one observer sequentially. It does not fork encoding or fan-out per event, so every healthy subscriber observes the same order.
+Core 顺序调用这一个观察者，不为每个事件派生编码或分发任务，因此所有正常订阅者看到相同顺序。
 
-When no HTTP subscribers are registered, the observer returns before wire encoding, so headless and idle servers do not pay serialization cost.
+没有 HTTP 订阅者注册时，观察者在传输编码前返回，因此无界面和空闲服务不承担序列化成本。
 
-### Connection scope
+### 连接作用域
 
-Each `feed.subscribe` acquisition:
+每次获取 `feed.subscribe` 时：
 
-1. Allocates one dropping queue.
-2. Registers it synchronously.
-3. Returns `Stream.fromQueue(queue)`.
-4. Removes and shuts down the queue when the request scope closes.
+1. 分配一个 dropping 队列。
+2. 同步注册。
+3. 返回 `Stream.fromQueue(queue)`。
+4. 请求作用域关闭时，移除并关闭队列。
 
-The raw handler acquires and registers the queue before prepending its connection-specific `server.connected` frame:
+原始处理器先获取并注册队列，再在流前添加该连接专属的 `server.connected` 帧：
 
 ```text
 register queue
@@ -150,78 +150,78 @@ register queue
   -> drain queued live frames
 ```
 
-Events before registration may be missed, consistent with a volatile stream. Events after registration queue behind `server.connected`.
+注册前的事件可能遗漏，这符合非持久化流语义。注册后的事件排在 `server.connected` 之后。
 
-Heartbeats remain connection-local and outside the feed.
+心跳仍属于连接本地，不进入事件源。
 
-### Encoding failure
+### 编码失败
 
-If one accepted public event cannot be encoded:
+某个已接受的公共事件无法编码时：
 
-1. Log its ID, type, and cause.
-2. Fail every currently connected queue with `EncodingError`.
-3. Skip the malformed volatile event.
-4. Keep the feed available for later connections and valid events.
+1. 记录其 ID、类型和原因。
+2. 以 `EncodingError` 使当前所有已连接队列失败。
+3. 跳过格式错误的非持久化事件。
+4. 保持事件源可用，继续服务后续连接和有效事件。
 
-Keeping current clients connected would create a silent gap. Permanently terminating the feed would poison future connections.
+让当前客户端继续连接会造成静默缺口；永久终止事件源则会影响所有未来连接。
 
-## HTTP And Code Generation
+## HTTP 与代码生成
 
-Protocol remains unchanged:
+Protocol 保持不变：
 
 ```ts
 HttpApiSchema.StreamSse({ data: OpenCodeEvent })
 ```
 
-The raw handler continues to own:
+原始处理器继续负责：
 
-- the unique `server.connected` event;
-- the 15-second heartbeat;
-- SSE response headers;
-- `HttpServerResponse.stream` construction.
+- 唯一的 `server.connected` 事件；
+- 每 15 秒一次的心跳；
+- SSE 响应头；
+- `HttpServerResponse.stream` 构建。
 
-The feed supplies complete immutable SSE frame strings for ordinary public events. The handler merges connection-local frames and performs text-to-byte encoding.
+事件源为普通公共事件提供完整且不可变的 SSE 帧字符串。处理器合并连接本地帧，并执行文本到字节的编码。
 
-Because method, path, schema, and wire representation do not change:
+由于方法、路径、schema 和传输表示未变化：
 
-- OpenAPI does not change;
-- generated Promise clients do not change;
-- generated Effect clients do not change;
-- TUI decoding and reconnect behavior do not change;
-- client regeneration is not required.
+- OpenAPI 不变；
+- 生成的 Promise 客户端不变；
+- 生成的 Effect 客户端不变；
+- TUI 解码和重连行为不变；
+- 无需重新生成客户端。
 
-## Core Cleanup
+## Core 清理
 
-The Server no longer uses `EventV2.liveBounded`, so Core removes that dead helper and its transport-specific overflow error. The feed registers one observer through the existing `listen` interface; other listeners are unchanged.
+Server 不再使用 `EventV2.liveBounded`，因此 Core 移除该无用辅助函数及其传输专用溢出错误。事件源通过现有 `listen` 接口注册一个观察者；其他监听器不变。
 
-Transactional projector registration is unrelated and remains unchanged.
+事务投影器注册与此无关，保持不变。
 
-## Benchmark
+## 基准测试
 
-The disposable benchmark reproduced the previous per-connection schema/JSON/SSE encoding path with a representative 8 KiB public event. It used one warmup and nine measured runs; median was the primary metric and median absolute deviation was reported. The benchmark was intentionally not committed because it isolated the removed encoding boundary rather than exercising the complete HTTP stack.
+临时基准测试用一个有代表性的 8 KiB 公共事件复现旧的逐连接 schema／JSON／SSE 编码路径。预热一次，测量九次，以中位数为主要指标，并报告中位绝对偏差。该基准有意未提交，因为它仅隔离测量已移除的编码边界，而非测试完整 HTTP 栈。
 
-Results on Apple Silicon with Bun 1.3.14:
+Apple Silicon、Bun 1.3.14 环境下的结果：
 
-| Clients | Current median | Shared median | Change |
+| 客户端数 | 原方案中位数 | 共享方案中位数 | 变化 |
 | ------: | -------------: | ------------: | -----: |
 |       1 |       9.488 ms |      9.554 ms |  +0.7% |
 |      10 |      96.312 ms |     10.352 ms | -89.3% |
 |      50 |     553.928 ms |     12.389 ms | -97.8% |
 
-The benchmark isolates the repeated encoding boundary. It does not claim to measure socket throughput, client decoding, or downstream HTTP buffering. Queue offers and socket writes remain proportional to connected clients.
+该基准只测量重复编码边界，不声称测量了 socket 吞吐、客户端解码或下游 HTTP 缓冲。队列入队和 socket 写入仍与已连接客户端数成正比。
 
-An experiment replacing direct schema encoding plus `JSON.stringify` with `Schema.fromJsonString(OpenCodeEvent)` was discarded: the one-client median regressed from approximately 9.5 ms to 38.8 ms with substantially higher variance.
+曾尝试用 `Schema.fromJsonString(OpenCodeEvent)` 替换直接 schema 编码加 `JSON.stringify`，但已放弃：单客户端中位数从约 9.5 ms 恶化到 38.8 ms，波动也明显增大。
 
-## Verification
+## 验证
 
-Behavioral tests cover:
+行为测试覆盖：
 
-- one encoding operation for multiple subscribers;
-- identical frame delivery to healthy subscribers;
-- independent slow-subscriber overflow;
-- healthy delivery of events after another subscriber overflows;
-- filtering internal events before capacity;
-- failure of current subscribers after malformed public encoding;
-- continued delivery to later subscribers after an encoding failure.
+- 多订阅者共享一次编码；
+- 正常订阅者收到相同帧；
+- 慢订阅者独立溢出；
+- 某个订阅者溢出后，其他订阅者仍正常收到事件；
+- 内部事件在占用容量前被过滤；
+- 公共事件编码错误后，当前订阅者失败；
+- 编码失败后，仍可向后续订阅者投递。
 
-Package typechecks and the existing Core event/event-logger suites protect the Core interface migration.
+包级类型检查和现有 Core event／event-logger 测试集为 Core 接口迁移提供回归保护。

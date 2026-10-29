@@ -101,3 +101,24 @@ test("project actions update schema-derived state and follow dynamic server scop
   expect(store.projects.local).toEqual([{ worktree: "/local", expanded: true }])
   expect(store.projects[props.server]).toEqual([{ worktree: "/remote", expanded: false }])
 })
+
+test.each(["C:\\OpenCode\\Project", "C:/OpenCode/Project/"])(
+  "closing %s removes the equivalent stored Windows path without removing another project",
+  (directory) => {
+    const [store, setStore] = createStore(Schema.decodeUnknownSync(serverSchema())({}))
+    const projects = createServerProjects({ store, setStore, scope: () => ServerScope.local })
+    projects.open("C:/OpenCode/Project")
+    projects.open("C:/OpenCode/Project-other")
+
+    projects.close(directory)
+
+    expect(projects.list()).toEqual([{ worktree: "C:/OpenCode/Project-other", expanded: true }])
+    expect(projects.closed()).toEqual([directory])
+    projects.open("C:/OpenCode/Project")
+    expect(projects.closed()).toEqual([])
+    expect(projects.list()).toEqual([
+      { worktree: "C:/OpenCode/Project", expanded: true },
+      { worktree: "C:/OpenCode/Project-other", expanded: true },
+    ])
+  },
+)

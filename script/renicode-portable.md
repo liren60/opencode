@@ -14,6 +14,8 @@ bun script/deploy-renicode.ts --check
 
 独立启动器由 Bun 编译为 EXE，不依赖 Bun 安装或 Renicode 的 Electron 文件。启动器更新放在新的目录，不覆盖正在运行的启动器。未配置系统服务、登录自启或机器唤醒。
 
+桌面 GUI 的启动不能使用 `windowsHide: true`：Windows 会将隐藏指令应用到首个窗口，即使 Electron 已调用显示窗口且健康检查通过，窗口也可能不可见。控制台隐藏由独立启动器的编译选项负责；后台命令仍可静默启动。相关修复与验证见 [2026-10-28 启动窗口可见性记录](../docs/validation/renicode-launcher-visibility.md)。
+
 ## 查看状态与手动回退
 
 只修复启动器和桌面入口，不重建桌面、不切换槽位、不自动启动程序：

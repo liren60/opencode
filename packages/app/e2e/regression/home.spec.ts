@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test"
-import { expectPath, holdRoute, NO_PROVIDER, project, REMOTE_SERVER, seed, sessionHref } from "../utils/app"
+import { draftHref, expectPath, holdRoute, NO_PROVIDER, project, REMOTE_SERVER, seed, sessionHref } from "../utils/app"
 import { mockOpenCodeServer } from "../utils/mock-server"
 import { fixture, mockStressTimeline } from "../utils/session-fixture"
 import { mockRemoteServer, openSession } from "../utils/workspace"
@@ -28,10 +28,17 @@ test("project navigator groups chats, follows tabs, and creates a draft in the c
   const navigator = page.getByRole("navigation", { name: "Project navigator" })
   const current = navigator.getByRole("button", { name: "Current project", exact: true })
   const other = navigator.getByRole("button", { name: "Other project", exact: true })
-  await expect(navigator.getByRole("button", { name: "Hide project navigator", exact: true }).locator("svg")).toHaveCount(1)
-  await expect(navigator.getByRole("button", { name: "New session in Other project", exact: true }).locator("svg")).toHaveCount(1)
+  await expect(
+    navigator.getByRole("button", { name: "Hide project navigator", exact: true }).locator("svg"),
+  ).toHaveCount(1)
+  await expect(
+    navigator.getByRole("button", { name: "New session in Other project", exact: true }).locator("svg"),
+  ).toHaveCount(1)
   await expect(current).toHaveAttribute("aria-current", "true")
-  await expect(navigator.getByRole("link", { name: "Current chat", exact: true })).toHaveAttribute("aria-current", "page")
+  await expect(navigator.getByRole("link", { name: "Current chat", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page",
+  )
   await expect(navigator.getByRole("link", { name: "Archived chat", exact: true })).toHaveCount(0)
   await other.click()
   await expect(other).toHaveAttribute("aria-expanded", "true")
@@ -53,8 +60,165 @@ test("project navigator groups chats, follows tabs, and creates a draft in the c
   await expect(other).toHaveAttribute("aria-current", "true")
 })
 
+test("closing a project hides its navigator row across retained session and draft tabs until explicitly reopened", async ({
+  page,
+}) => {
+  const name = "Closing project"
+  const directory = "C:/OpenCode/Closing project"
+  const draftID = "draft_closed_project"
+  const workspace = await openSession(page, {
+    name,
+    directory,
+    sessions: [{ id: "ses_closed_project", title: "Retained chat" }],
+    seed: { tabs: ["ses_closed_project", { draft: draftID, directory }] },
+  })
+  const navigator = page.getByRole("navigation", { name: "Project navigator" })
+  const project = navigator.getByRole("button", { name, exact: true })
+  await expect(project).toHaveAttribute("aria-current", "true")
+
+  await page.getByRole("button", { name: "Settings", exact: true }).click()
+  const settings = page.getByTestId("settings-screen")
+  await settings.getByRole("tab", { name: "Projects", exact: true }).click()
+  const card = settings.getByRole("listitem").filter({ has: page.getByRole("button", { name, exact: true }) })
+  await card.getByRole("button", { name: "More options", exact: true }).click()
+  await page.getByRole("menuitem", { name: "Close", exact: true }).click()
+  await expect(card).toHaveCount(0)
+
+  await settings.getByRole("button", { name: "Back to app", exact: true }).click()
+  await expectPath(page, sessionHref("ses_closed_project"))
+  await expect(workspace.editor).toBeEditable()
+  await expect(project).toHaveCount(0)
+  await expect(navigator.getByRole("link", { name: "Retained chat", exact: true })).toHaveCount(0)
+
+  await page.locator(`[data-titlebar-tab-link][href="${draftHref(draftID)}"]`).click()
+  await expectPath(page, draftHref(draftID))
+  await expect(workspace.editor).toBeEditable()
+  await expect(project).toHaveCount(0)
+  await page.locator(`[data-titlebar-tab-link][href="${sessionHref("ses_closed_project")}"]`).click()
+  await expectPath(page, sessionHref("ses_closed_project"))
+  await expect(workspace.editor).toBeEditable()
+  await expect(project).toHaveCount(0)
+
+  await page.getByRole("button", { name: "Home", exact: true }).click()
+  const closed = page.locator('[data-component="home-recently-closed-row"]').filter({ hasText: name })
+  await expect(closed).toBeEnabled()
+  await closed.click()
+  await expect(project).toBeVisible()
+  await expect(closed).toHaveCount(0)
+  await expect(navigator.getByRole("link", { name: "Retained chat", exact: true })).toBeVisible()
+})
+
 const row = (page: Page, title: string) =>
   page.locator('[data-component="home-session-row"]').filter({ hasText: title })
+
+for (const source of ["session menu", "another client"]) {
+  test(`project navigator drops deleted chats from its cached index after deletion by ${source}`, async ({ page }) => {
+    const workspace = await openSession(page, {
+      name: "Deletion project",
+      sessions: [
+        { id: "ses_removed", title: "Removed chat", created: 2000 },
+        { id: "ses_kept", title: "Kept chat", created: 1000 },
+      ],
+      sessionID: source === "session menu" ? "ses_removed" : "ses_kept",
+      seed: { tabs: source === "session menu" ? ["ses_removed", "ses_kept"] : ["ses_kept"] },
+    })
+    const navigator = page.getByRole("navigation", { name: "Project navigator" })
+    await expect(navigator.getByRole("link", { name: "Removed chat", exact: true })).toBeVisible()
+    await expect(navigator.getByRole("link", { name: "Kept chat", exact: true })).toBeVisible()
+
+    if (source === "session menu") {
+      await page.locator("[data-session-title]").getByRole("button", { name: "More options", exact: true }).click()
+      await page.getByRole("menuitem", { name: "Delete…", exact: true }).click()
+      const removed = page.waitForResponse(
+        (response) =>
+          response.request().method() === "DELETE" && new URL(response.url()).pathname === "/api/session/ses_removed",
+      )
+      await page.getByRole("dialog").getByRole("button", { name: "Delete session", exact: true }).click()
+      await removed
+      await expectPath(page, sessionHref("ses_kept"))
+      await expect(navigator.getByRole("link", { name: "Removed chat", exact: true })).toHaveCount(0)
+    }
+
+    workspace.sessions.splice(
+      workspace.sessions.findIndex((session) => session.id === "ses_removed"),
+      1,
+    )
+    workspace.sessions.find((session) => session.id === "ses_kept")!.title = "Kept chat updated"
+    await workspace.push([
+      {
+        id: "evt_removed",
+        created: Date.now(),
+        durable: { aggregateID: "ses_removed", seq: 1, version: 2 },
+        type: "session.deleted",
+        data: { sessionID: "ses_removed" },
+      },
+      {
+        id: "evt_kept_updated",
+        created: Date.now(),
+        durable: { aggregateID: "ses_kept", seq: 1, version: 1 },
+        type: "session.execution.succeeded",
+        data: { sessionID: "ses_kept" },
+      },
+    ])
+    // The later update proves the deletion event was processed, not just queued.
+    await expect(navigator.getByRole("link", { name: "Kept chat updated", exact: true })).toBeVisible()
+    await expect(navigator.getByRole("link")).toHaveCount(1)
+    await navigator.getByRole("link", { name: "Kept chat updated", exact: true }).click()
+    await expectPath(page, sessionHref("ses_kept"))
+    await expect(workspace.editor).toBeEditable()
+  })
+}
+
+test("project navigator keeps the last conversation time when selected and refreshes after a conversation", async ({
+  page,
+}) => {
+  const now = Date.parse("2026-01-07T12:00:00Z")
+  const updated = now - 5 * 86_400_000
+  await page.clock.install({ time: now })
+  const workspace = await openSession(page, {
+    name: "Dates project",
+    sessions: [
+      { id: "ses_other_dates", title: "Other dated chat", time: { created: updated, updated: now } },
+      {
+        id: "ses_dates",
+        title: "Dated chat",
+        time: { created: updated - 86_400_000, updated, idle: updated, viewed: updated },
+      },
+    ],
+  })
+  const chat = page
+    .getByRole("navigation", { name: "Project navigator" })
+    .getByRole("link", { name: "Dated chat", exact: true })
+  await expect(chat.locator("time")).toHaveText("5d")
+  await expect(chat.locator("time")).toHaveAttribute("datetime", "2026-01-02T12:00:00.000Z")
+  // A fresh generic update (for example view bookkeeping) is not a new conversation.
+  workspace.sessions[1].time.updated = now
+  await chat.click()
+  await expectPath(page, sessionHref("ses_dates"))
+  await expect(workspace.editor).toBeEditable()
+  await expect(chat).toHaveAttribute("aria-current", "page")
+  await expect(chat.locator("time")).toHaveText("5d")
+  await expect(chat.locator("time")).toHaveAttribute("datetime", "2026-01-02T12:00:00.000Z")
+  await expect(
+    page
+      .getByRole("navigation", { name: "Project navigator" })
+      .getByRole("link", { name: "Other dated chat", exact: true })
+      .locator("time"),
+  ).toHaveText("5d")
+  Object.assign(workspace.sessions[1].time, { idle: now - 2 * 3_600_000, viewed: now - 2 * 3_600_000 })
+  await workspace.push([
+    {
+      id: "evt_dates_updated",
+      created: now,
+      durable: { aggregateID: "ses_dates", seq: 1, version: 1 },
+      type: "session.execution.succeeded",
+      data: { sessionID: "ses_dates" },
+    },
+  ])
+  await expect(chat.locator("time")).toHaveText("2h")
+  await expect(chat.locator("time")).toHaveAttribute("datetime", "2026-01-07T10:00:00.000Z")
+  await expect(chat.locator("time")).toHaveAttribute("title", /Last conversation .*2026/)
+})
 
 async function openHome(page: Page, input: Parameters<typeof mockStressTimeline>[1] = {}) {
   await mockStressTimeline(page, input)

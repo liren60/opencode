@@ -996,6 +996,9 @@ export const dict = {
   "session.delete.title": "Delete session",
   "session.delete.confirm": 'Delete session "{{name}}"?',
   "session.delete.button": "Delete session",
+  "sidebar.session.now": "now",
+  "sidebar.session.updated": "Last modified {{date}}",
+  "sidebar.session.activity": "Last conversation {{date}}",
 
   "workspace.new": "New worktree",
   "common.viewAll": "View all",

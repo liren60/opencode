@@ -1,55 +1,55 @@
-# Continuous improvement development plan
+# 持续改进开发计划
 
-## Goal
+## 目标
 
-Build an opt-in, reviewable feedback → memory → verification → evaluation loop for OpenCode V2. Reuse plugin APIs; do not change model weights, global instructions, public HTTP contracts, or execution authority.
+为 OpenCode V2 建立需要主动启用、可审核的“反馈 → 记忆 → 验证 → 评估”闭环。复用插件 API，不改变模型权重、全局指令、公共 HTTP 契约或执行权限。
 
-## Current delivery status
+## 当前交付状态
 
-- Phase 1 implementation and usage documentation are present; the plugin remains disabled by default and has not been enabled in this checkout.
-- 19 model regression tests and 4 real-host integration tests pass, including 10 consecutive repetitions of each suite (230 executions, no failures).
-- Plugin and Core focused type checks pass with both Bun and the official package `typecheck:tsc` scripts. Formatting and focused lint pass.
-- Root `bun run check` is blocked by the local Node runtime rejecting the repository's TypeScript lint plugin. Running Oxlint with Bun completes with no errors (existing repository warnings); the other lint steps complete.
-- Separate root type checking stops at the existing `packages/app/src/custom-elements.d.ts` symlink placeholder, whose contents are a relative path rather than TypeScript. No unrelated app files were changed to bypass this issue.
-- Real model baseline/candidate evaluations, visual UI, skill drafting and OS isolation are not part of this completed batch.
+- 第一阶段的实现和使用文档已具备；插件仍默认禁用，且未在此检出目录中启用。
+- 19 项模型回归测试和 4 项真实宿主集成测试通过，包括每套测试连续重复 10 次（共执行 230 次，无失败）。
+- 插件和 Core 的针对性类型检查均通过 Bun 和包内官方 `typecheck:tsc` 脚本。格式检查和针对性 lint 通过。
+- 根目录 `bun run check` 被本地 Node 运行时拒绝加载仓库 TypeScript lint 插件的问题阻塞。用 Bun 运行 Oxlint 可完成且无错误（有仓库已有警告）；其他 lint 步骤已完成。
+- 单独运行的根目录类型检查在已有的 `packages/app/src/custom-elements.d.ts` 符号链接占位文件处停止：其内容是相对路径，而非 TypeScript。没有为了绕过此问题修改无关的 app 文件。
+- 本批已完成内容不包含真实模型基线／候选评估、可视化界面、技能草稿生成或操作系统隔离。
 
-## Phase 1 — independently installable MVP
+## 第一阶段 — 可独立安装的最小可用版本（MVP）
 
-1. **Feedback memory:** propose a bounded note linked to an actual user message; keep it pending until approval. Support activation, rejection, suspension and deletion. Load only approved notes, scoped to the current project, with a bounded context budget.
-2. **Task verification:** declare checks before execution. A verification tool delegates to the existing Shell executor (including its permissions), records its structured result, and derives passed / failed / unverified / stale status. Never accept an exit code supplied by the model.
-3. **Evaluation:** configure a fixed case suite. Label baseline and candidate tasks; collect user-approved outcome feedback with a frozen verification report. Compare only complete, matching suites without duplicate cases. Report verification rate, acceptance rate and elapsed verification time; do not invent cost or quality scores.
-4. **Delivery:** package documentation, regression tests and host integration tests. Keep the plugin disabled unless explicitly configured.
+1. **反馈记忆：** 提议一条有大小限制、关联真实用户消息的记忆，获批前保持待审核状态。支持激活、拒绝、暂停和删除。仅加载当前项目中获批的条目，并限制上下文预算。
+2. **任务验证：** 执行前声明检查。验证工具委托现有 Shell 执行器（包括其权限检查）运行，记录结构化结果，并推导 passed／failed／unverified／stale 状态。绝不接受模型提供的退出码。
+3. **评估：** 配置固定用例集。标记基线和候选任务，收集用户批准的结果反馈，并冻结验证报告。只比较完整、匹配且无重复用例的用例集。报告验证率、接受率和验证耗时，不捏造成本或质量评分。
+4. **交付：** 提供包文档、回归测试和宿主集成测试。除非显式配置，否则保持插件禁用。
 
-### Acceptance criteria
+### 验收标准
 
-- A pending or suspended memory is never injected into model context.
-- Memory changes and outcome feedback request approval, even if ordinary tools are allowed. Configured denies remain final.
-- Project namespaces cannot read each other's records; session tasks cannot use another session's task.
-- A check is passed only after a completed Shell result with exit 0, no timeout and no signal.
-- Missing, running and unrecognized results remain unverified. Observed edits invalidate earlier evidence.
-- Verification exceptions propagate; an interrupted or failed attempt cannot leave an earlier success as the latest evidence.
-- Missing, duplicate or changed evaluation cases suppress comparison deltas.
-- Data remains in local plugin storage; no automatic telemetry, external services or writes to AGENTS.md.
+- 待审核或已暂停的记忆绝不注入模型上下文。
+- 即使普通工具获准使用，记忆变更和结果反馈也必须请求审批。配置中的拒绝规则仍具有最终效力。
+- 项目命名空间不能读取其他项目的记录；会话任务不能使用另一会话的任务。
+- 只有 Shell 已完成、退出码为 0、未超时且未被信号终止，检查才算通过。
+- 缺失、运行中和无法识别的结果保持未验证状态。检测到编辑会使先前证据失效。
+- 验证异常应向上传播；中断或失败的尝试不能让早先的成功继续作为最新证据。
+- 评估用例缺失、重复或发生变化时，不展示对比差值。
+- 数据保存在本地插件存储；不自动遥测、不使用外部服务、不写入 AGENTS.md。
 
-### Explicit MVP limits
+### MVP 的明确边界
 
-- Memory extraction is agent-proposed, not a background learner; approval is the existing permission workflow, not an independent identity system.
-- Checks establish the success of declared commands, not the semantic correctness of a whole task. Weak checks such as `echo ok` are not meaningful acceptance tests.
-- Edit invalidation tracks built-in edit/write/patch calls and explicit invalidation. External editors, arbitrary Shell mutations and other tools require explicit invalidation or re-verification. This is not a filesystem transaction or sandbox.
-- Verification is foreground-only. Backgrounded commands are unverified; no polling or fabricated completion.
-- Unit/host regression tests validate this loop. They are not evidence that a model's coding quality improved; that requires real baseline/candidate case runs.
+- 记忆提取由智能体提议，不是后台学习器；审批采用现有权限流程，不是独立身份系统。
+- 检查证明声明的命令执行成功，而不是整个任务语义正确。`echo ok` 等弱检查不是有效验收测试。
+- 编辑失效机制跟踪内置 edit／write／patch 调用和显式失效操作。外部编辑器、任意 Shell 修改和其他工具需要显式失效或重新验证。这不是文件系统事务，也不是沙箱。
+- 验证仅支持前台执行。后台命令保持未验证，不轮询，也不捏造完成结果。
+- 单元／宿主回归测试验证此闭环，不证明模型编码质量提升；后者需要真实基线／候选用例运行。
 
-## Phase 2 — experience reuse and visibility
+## 第二阶段 — 经验复用与可见性
 
-- Generate skill drafts from repeated successful work, review before enabling.
-- UI for memory, evidence, effective rule sources and context budget.
-- Task-local checklist integration and required-check enforcement after an explicit product decision.
-- Better edit attribution, rollback conflict previews, retention/export controls.
+- 从反复成功的工作中生成技能草稿，审核后才启用。
+- 为记忆、证据、生效规则来源和上下文预算提供界面。
+- 经明确产品决策后，集成任务级检查清单并强制执行必需检查。
+- 改进编辑归因、回滚冲突预览及保留／导出控制。
 
-## Phase 3 — broader autonomy, separately approved
+## 第三阶段 — 更广泛的自主能力，需单独批准
 
-- OS-enforced filesystem/network isolation on Windows, Linux and macOS, with allow/block tests.
-- Multi-task observability and budgets.
-- Repository-map/context selection and model routing, chosen using measured evaluations.
+- 在 Windows、Linux 和 macOS 上实现由操作系统强制执行的文件系统／网络隔离，并进行允许／阻止测试。
+- 多任务可观测性和预算。
+- 根据实测评估选择仓库地图／上下文选择策略和模型路由。
 
-Do not raise autonomy before technical isolation is verified. Permission presets must never be described as an OS sandbox.
+技术隔离验证通过前，不得提升自主权限。绝不能将权限预设描述成操作系统沙箱。

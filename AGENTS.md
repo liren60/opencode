@@ -1,3 +1,12 @@
+## Documentation workflow
+
+- At task start, read `docs/README.md` and the shared workflow it links, then only the task-related discussion, effective plan and latest validation. Read local files; a running Wiki is not required. If rules or approval evidence are unavailable, say so rather than inferring authorization.
+- New formal documents use `docs/discussions`, `docs/plans`, `docs/design`, `docs/guides`, `docs/knowledge`, `docs/references`, `docs/validation`, or `docs/archive`. Keep code layouts, required root files, and existing `specs/v2` contracts. Existing active plans keep their paths during concurrent work; do not create duplicate plans.
+- Discussion confirmation, permission to write a plan, and permission to implement are distinct. Keep effective scope separate from pending changes; get confirmation for scope expansion, reduction or architectural changes. Record revisions and actual validation evidence.
+- Paused, terminated and superseded plans retain history, reasons, outcomes and handoff. Document status does not stop processes, authorize resumption, rollback, deletion, deployment or unattended execution. Wiki content does not override applicable instructions or permissions.
+
+## Repository rules
+
 - After changing the public Protocol or Server `HttpApi`, run `bun run generate` from `packages/client`. Do not edit generated client files directly.
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk` composes Client, Core, and Server.
 - This repository does not use Changesets. Do not add `.changeset` files; follow the existing release workflow instead.
@@ -8,6 +17,11 @@
 - User preference: future Renicode application changes should include A/B deployment, not stop at source edits, unless the user explicitly asks for code-only work.
 - Use `bun script/deploy-renicode.ts --check` and follow `script/renicode-portable.md`. Stage updates in the inactive slot; do not overwrite the active slot or the original installation.
 - Never force-close or restart the running desktop or background server to activate an update. Let the launcher switch after the current desktop exits normally, and report whether the update is staged or active.
+
+## Task Mode Plan
+
+- The proposed continuous-task / fresh-session rotation plan is in [`plans/task-mode.md`](plans/task-mode.md). It records the user's 500K execution-context budget and 50K fresh-session startup-input target; it is not implemented or enabled.
+- Keep a persistent Task separate from its sequential execution Sessions. Do not replace fresh-session rotation with an indefinitely accumulating summary, delete old Session history, or treat this plan as permission to launch unattended work or bypass approvals.
 
 ## Live TUI Testing
 

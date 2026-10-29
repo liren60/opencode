@@ -1,40 +1,40 @@
-# V2 Specifications
+# V2 规范
 
-These documents explain V2 behavior that is difficult to recover from one source file. They are not API reference or a backlog.
+这些文档解释难以从单个源文件还原的 V2 行为，不是 API 参考，也不是待办清单。
 
-## Authority
+## 权威来源
 
-Authority follows the concern:
+不同关注点对应不同权威来源：
 
-| Concern                                         | Owner                                                                                      |
+| 关注点                                          | 负责方                                                                                     |
 | ----------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| HTTP operations and transport errors            | [Protocol](../../packages/protocol/src) endpoint definitions assembled by Server `HttpApi` |
-| Public domain shapes and durable event payloads | [Schema](../../packages/schema/src)                                                        |
-| Runtime behavior and persistence                | [Core](../../packages/core/src)                                                            |
-| Contributor-critical regression guardrails      | Root [AGENTS.md](../../AGENTS.md)                                                          |
+| HTTP 操作和传输错误                              | 由 Server `HttpApi` 组合的 [Protocol](../../packages/protocol/src) 端点定义 |
+| 公共领域数据结构和持久化事件载荷                 | [Schema](../../packages/schema/src) |
+| 运行时行为和持久化                              | [Core](../../packages/core/src) |
+| 贡献者必须遵守的回归防护约束                     | 根目录 [AGENTS.md](../../AGENTS.md) |
 
-Current specifications explain cross-module contracts without copying exact types. Decision records explain why a design was selected. Historical documents describe earlier states and may use obsolete names.
+现行规范解释跨模块契约，不重复具体类型定义。决策记录解释设计选择的原因。历史文档描述早期状态，可能使用已过时的名称。
 
-Generated clients follow the assembled public `HttpApi`. GitHub issues own active work; Git history preserves removed plans and scratchpads.
+生成的客户端遵循组合后的公共 `HttpApi`。当前工作由 GitHub 议题管理；已移除的计划和草稿保留在 Git 历史中。
 
-## Current Contracts
+## 现行契约
 
-| Document                | Job                                                                                     |
+| 文档                    | 用途                                                                                    |
 | ----------------------- | --------------------------------------------------------------------------------------- |
-| [Session](./session.md) | Explain prompt admission, execution, instructions, compaction, and recovery boundaries. |
-| [Tools](./tools.md)     | Explain tool construction, registration, execution, and outcome laws.                   |
+| [会话](./session.md) | 解释提示接纳、执行、指令、压缩和恢复边界。 |
+| [工具](./tools.md) | 解释工具构建、注册、执行和结果约束。 |
 
-## Decision Records
+## 决策记录
 
-| Document                                       | Status                   | Job                                                                                                       |
+| 文档                                           | 状态                     | 用途                                                                                                      |
 | ---------------------------------------------- | ------------------------ | --------------------------------------------------------------------------------------------------------- |
-| [Event stream](./event-stream-architecture.md) | Accepted and implemented | Record why public events use one encoded feed with independent queues.                                    |
-| [Provider policy](./provider-policy.md)        | Accepted and implemented | Allow or deny provider use and permission checks, with Console-managed statements having final authority. |
+| [事件流](./event-stream-architecture.md) | 已接受并实现 | 记录公共事件为何采用单一编码源和独立队列。 |
+| [提供商策略](./provider-policy.md) | 已接受并实现 | 允许或拒绝提供商使用与权限检查，Console 托管语句具有最终决定权。 |
 
-## Historical Context
+## 历史背景
 
-| Document                                                                | Job                                                                                       |
+| 文档                                                                    | 用途                                                                                      |
 | ----------------------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
-| [Catalog/config/plugin lifecycle](./catalog-config-plugin-lifecycle.md) | Preserve the option comparison that led to replayable Location-scoped catalog transforms. |
+| [目录／配置／插件生命周期](./catalog-config-plugin-lifecycle.md) | 保留最终选用 Location 作用域内可重放目录变换的方案比较。 |
 
-Do not add implementation checklists here. Put actionable work in GitHub issues and package-specific contributor guidance next to the code it governs.
+不要在此添加实现检查清单。可执行的工作应放在 GitHub 议题中，包级贡献说明应放在所约束的代码附近。

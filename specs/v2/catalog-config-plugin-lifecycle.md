@@ -1,23 +1,23 @@
-# Catalog / Config / Plugin Lifecycle Options
+# 目录／配置／插件生命周期方案
 
-Status: **Historical decision record.** Option B, replayable Location-scoped Catalog transforms, was selected and implemented. All interfaces and flows below are historical option sketches, not current API reference; current behavior is owned by Core.
+状态：**历史决策记录。** 已选择并实现方案 B，即 Location 作用域内可重放的 Catalog 变换。以下所有接口和流程都是历史方案草图，不是现行 API 参考；当前行为以 Core 为准。
 
-The decision compared where provider/model inputs live and how visible catalog state changes after boot. The designs below preserve that comparison.
+此决策比较了提供商／模型输入放在哪里，以及启动后可见目录状态如何变化。以下设计保留了这次比较。
 
-## Scenarios
+## 场景
 
-- Initial load: a location opens, built-in/configured plugins activate, and the first visible catalog is constructed.
-- Config: authored provider/model definitions and overrides.
-- models.dev: remote provider/model data refreshed on a timer.
-- Auth: active credentials enable/configure providers and can later disappear.
-- Plugin activation: a plugin starts contributing while the location is open.
-- Plugin disablement: a plugin stops contributing and its influence must disappear.
-- Config edit: authored configuration changes while the location is open.
-- Policy: allowed/denied provider selection changes after providers exist.
+- 初次加载：打开 Location，激活内置／已配置插件，构建首个可见目录。
+- 配置：手工编写的提供商／模型定义和覆盖设置。
+- models.dev：通过定时器刷新远程提供商／模型数据。
+- 认证：活动凭据启用／配置提供商，凭据之后可能失效或消失。
+- 插件激活：Location 打开期间，插件开始贡献内容。
+- 插件禁用：插件停止贡献，其影响必须消失。
+- 配置编辑：Location 打开期间，手工配置发生变化。
+- 策略：提供商已存在后，允许／拒绝使用的选择发生变化。
 
-## A. Rejected: Config Transforms, Service Reload
+## A. 已否决：配置变换与服务重载
 
-`Config` merges its ordered documents and then runs ordered, replayable plugin transforms. Each transform is a callback receiving `Draft<Config.Info>` and may mutate any config field.
+`Config` 按顺序合并文档，然后运行有序、可重放的插件变换。每个变换是一个接收 `Draft<Config.Info>` 的回调，可修改任意配置字段。
 
 ```ts
 type ConfigTransform = (config: Draft<Config.Info>) => void
@@ -37,7 +37,7 @@ yield *
   })
 ```
 
-Because a transform can mutate any part of config, a transform change cannot safely trigger only `Catalog.reload()` or any other granular subset. Every service derived from config must reload in place from the newly transformed config.
+由于变换可修改配置的任何部分，变换变化时不能安全地只触发 `Catalog.reload()` 或其他局部服务重载。所有依赖配置的服务都必须根据新变换后的配置原地重载。
 
 ```ts
 const transform = yield* Config.transform()
@@ -50,9 +50,9 @@ yield* transform((draft) => mutateAnyConfigField(draft))
     → other config-consuming services reload
 ```
 
-### Initial Load
+### 初次加载
 
-Configured plugin installation/updates should not block location readiness. Build an initial snapshot from authored config and fast built-ins, then activate slow plugins in the background and coalesce their resulting reload requests.
+已配置插件的安装／更新不应阻塞 Location 就绪。先根据手工配置和快速内置插件构建初始快照，再在后台激活慢插件，并合并由此产生的重载请求。
 
 ```ts
 LocationServiceMap.get(ref)
@@ -81,9 +81,9 @@ PluginBoot background fiber
             → Frontend.refetchCatalog()
 ```
 
-The initial layer build is not a reload. `Reload.all()` only runs after the live location changes, such as a background plugin becoming active or a config source changing. Debouncing reduces repeated full-service reloads when multiple plugins complete near each other; each batch still reloads every config-consuming service because a config transform may mutate any field.
+初始层构建不是重载。只有活动 Location 变化后，例如后台插件激活或配置来源变化，才运行 `Reload.all()`。多个插件相近时间完成时，防抖可减少重复的全服务重载；每批仍重载所有使用配置的服务，因为配置变换可修改任意字段。
 
-### Config
+### 配置
 
 ```ts
 config file loaded
@@ -95,7 +95,7 @@ config file loaded
           → Frontend.refetchCatalog()
 ```
 
-### models.dev
+### models.dev 数据刷新
 
 ```ts
 timer fires
@@ -109,9 +109,9 @@ timer fires
           → Frontend.refetchCatalog()
 ```
 
-`Catalog` does not know about `ModelsDev`; the plugin transforms config before catalog reads it.
+`Catalog` 不知道 `ModelsDev` 的存在；插件在目录读取配置前变换配置。
 
-### Auth
+### 认证
 
 ```ts
 Account.switched(providerID)
@@ -125,7 +125,7 @@ Account.switched(providerID)
           → Frontend.refetchCatalog()
 ```
 
-### Plugin Activation
+### 插件激活
 
 ```ts
 Plugin.activate("acme-models")
@@ -138,7 +138,7 @@ Plugin.activate("acme-models")
         → Frontend.refetchCatalog()
 ```
 
-### Plugin Disablement
+### 插件禁用
 
 ```ts
 Plugin.disable("company-naming")
@@ -152,7 +152,7 @@ Plugin.disable("company-naming")
         → Frontend.refetchCatalog()
 ```
 
-### Config Edit
+### 配置编辑
 
 ```ts
 file watcher sees edit
@@ -164,7 +164,7 @@ file watcher sees edit
         → Frontend.refetchCatalog()
 ```
 
-### Policy
+### 策略
 
 ```ts
 policy config changes
@@ -177,20 +177,20 @@ policy config changes
         → Frontend.refetchCatalog()
 ```
 
-### Tradeoffs
+### 权衡
 
-- A plugin receives `Draft<Config.Info>`, can inspect preceding config state, and can mutate arbitrary config fields through a replayable transform.
-- Plugin disablement removes its config transform and lets services rematerialize without manual undo.
-- models.dev and auth become config transforms rather than catalog dependencies.
-- `Config` owns merge/order semantics for fields visible to transforms.
-- Granular service reload is not safe because a config transform can mutate anything; every config-consuming service reloads after any transform change.
-- `Catalog` depends on provider/model config semantics and is part of that full service reload.
-- One reload produces at most one `Catalog.Event.Updated` notification.
-- Deferred plugin activation avoids blocking readiness, but plugin completions may cause repeated full-service reload batches during startup.
+- 插件接收 `Draft<Config.Info>`，可查看先前的配置状态，并通过可重放变换修改任意配置字段。
+- 禁用插件会移除其配置变换，让服务重新构建状态，无需手动撤销。
+- models.dev 和认证成为配置变换，而非目录依赖。
+- `Config` 负责变换可见字段的合并／顺序语义。
+- 配置变换可修改任何内容，因此局部服务重载不安全；任意变换变化后，所有使用配置的服务都需重载。
+- `Catalog` 依赖提供商／模型配置语义，是全服务重载的一部分。
+- 一次重载最多产生一个 `Catalog.Event.Updated` 通知。
+- 延迟插件激活避免阻塞就绪，但启动期间插件陆续完成可能造成多批全服务重载。
 
-## B. Selected: Catalog Transforms
+## B. 已选择：目录变换
 
-Plugins register replayable catalog transforms. Each transform receives a `Catalog.Editor` whose helper methods mutate a private catalog draft; `Catalog` rematerializes visible records from its active transforms.
+插件注册可重放的目录变换。每个变换接收 `Catalog.Editor`，其辅助方法修改私有目录草稿；`Catalog` 根据活动变换重新构建可见记录。
 
 ```ts
 interface Catalog {
@@ -209,9 +209,9 @@ yield* transform(update)
       → Frontend.refetchCatalog()
 ```
 
-### Initial Load
+### 初次加载
 
-Configured plugin installation/updates should not block location readiness. Build an initial catalog from immediately available sources, then activate slow plugins in the background and coalesce refresh requests.
+已配置插件的安装／更新不应阻塞 Location 就绪。先根据立即可用的来源构建初始目录，再在后台激活慢插件，并合并刷新请求。
 
 ```ts
 LocationServiceMap.get(ref)
@@ -237,9 +237,9 @@ PluginBoot background fiber
             → Frontend.refetchCatalog()
 ```
 
-Each completed plugin activation rebuilds catalog when it calls its transform. Debouncing plugin completions would require adding an explicit batch/suspend-rebuild mechanism; it does not arise from the transform interface itself.
+每个完成激活的插件调用其变换时，都会重建目录。对插件完成进行防抖，需要显式添加批处理／暂停重建机制；变换接口本身不提供此能力。
 
-### Config
+### 配置
 
 ```ts
 config file loaded
@@ -248,7 +248,7 @@ config file loaded
       → Catalog internally rebuilds
 ```
 
-### models.dev
+### models.dev 数据刷新
 
 ```ts
 timer fires
@@ -259,7 +259,7 @@ timer fires
       → commit diff
 ```
 
-### Auth
+### 认证
 
 ```ts
 Account.switched(providerID)
@@ -271,7 +271,7 @@ Account.switched(providerID)
         → commit diff
 ```
 
-### Plugin Activation
+### 插件激活
 
 ```ts
 Plugin.activate("acme-models")
@@ -281,7 +281,7 @@ Plugin.activate("acme-models")
       → commit diff
 ```
 
-### Plugin Disablement
+### 插件禁用
 
 ```ts
 Plugin.disable("company-naming")
@@ -292,7 +292,7 @@ Plugin.disable("company-naming")
       → commit diff
 ```
 
-### Config Edit
+### 配置编辑
 
 ```ts
 file watcher sees edit
@@ -301,7 +301,7 @@ file watcher sees edit
       → Catalog internally rebuilds
 ```
 
-### Policy
+### 策略
 
 ```ts
 policy changes
@@ -311,14 +311,14 @@ policy changes
     → commit diff
 ```
 
-### Tradeoffs
+### 权衡
 
-- Disablement, source refresh, and policy re-evaluation are transform replay operations.
-- Auth does not need to be represented as config.
-- Config remains one catalog source rather than a catalog dependency.
-- The API shape matches A, but the mutable draft is catalog state instead of configuration state.
-- Catalog needs transform ordering and internal rebuild behavior in addition to reads.
-- Recompute ordering, serialization, and diff events must be specified.
-- One internal rebuild produces at most one `Catalog.Event.Updated` notification.
-- Deferred plugin activation avoids blocking readiness and only rebuilds catalog for catalog transform changes.
-- Debouncing those rebuilds needs an additional batching interface or an activation coordinator that installs multiple transforms before exposing updates.
+- 禁用、来源刷新和策略重新评估都是变换重放操作。
+- 认证不必表示成配置。
+- 配置只是目录来源之一，而非目录依赖。
+- API 结构与 A 相同，但可变草稿是目录状态，而非配置状态。
+- 除读取外，目录还需要变换顺序和内部重建行为。
+- 必须明确重新计算顺序、串行化和差异事件。
+- 一次内部重建最多产生一个 `Catalog.Event.Updated` 通知。
+- 延迟插件激活避免阻塞就绪，且只有目录变换变化才重建目录。
+- 对这些重建进行防抖，需要额外批处理接口，或在暴露更新前安装多个变换的激活协调器。
