@@ -6,8 +6,30 @@ const env = {
   ...process.env,
   RENICODE_BUILD: "1",
   OPENCODE_CHANNEL: "dev",
-  OPENCODE_VERSION: "2.1.4-renicode.2",
+  OPENCODE_VERSION: "2.2.0-renicode.1",
   OPENCODE_CLI_DIST: path.join(root, "packages", "cli", "dist-renicode"),
+}
+
+const electron = process.argv.find((arg) => arg.startsWith("--electron-dist="))?.slice("--electron-dist=".length)
+
+if (electron) {
+  for (const name of [
+    "electron.exe",
+    "icudtl.dat",
+    "resources.pak",
+    "chrome_100_percent.pak",
+    "chrome_200_percent.pak",
+    "v8_context_snapshot.bin",
+    "snapshot_blob.bin",
+    "locales/en-US.pak",
+    "version",
+  ])
+    if (!(await Bun.file(path.join(electron, name)).exists()))
+      throw new Error(`Incomplete Electron distribution: ${name}`)
+  const expected = await Bun.file(path.join(root, "packages/desktop/node_modules/electron/package.json")).json()
+
+  if ((await Bun.file(path.join(electron, "version")).text()).trim() !== expected.version)
+    throw new Error("Electron distribution version differs from the pinned dependency")
 }
 
 if (!process.argv.includes("--desktop-only"))
@@ -37,11 +59,12 @@ try {
 
   await $`bun run build`.cwd(path.join(root, "packages", "desktop")).env(env)
   if (!process.argv.includes("--build-only")) {
-    const electron = process.argv.find((arg) => arg.startsWith("--electron-dist="))?.slice("--electron-dist=".length)
     const portable = process.argv.includes("--portable")
       ? ["--dir", ...(electron ? [`-c.electronDist=${electron}`, "-c.win.signAndEditExecutable=false"] : [])]
       : []
-    await $`bun run package:win --x64 --publish never ${portable}`.cwd(path.join(root, "packages", "desktop")).env(env)
+    await $`bunx electron-builder --config electron-builder.config.ts --win --x64 --publish never ${portable}`
+      .cwd(path.join(root, "packages", "desktop"))
+      .env(env)
   }
 } finally {
   for (const [file, bytes] of restored) await Bun.write(path.join(root, file), bytes)

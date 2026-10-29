@@ -3,11 +3,12 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { app, BrowserWindow, screen, shell } from "electron"
 import { RENICODE } from "../constants"
+import { Predicate } from "effect"
 import { resolveExternalURL } from "../files/external-url"
 import { windowArguments } from "./bootstrap"
 import { WINDOW_IDS_KEY } from "../storage/keys"
 import { getStore } from "../storage/store"
-import { storedBackgroundColor, titlebarOverlay } from "./defaults"
+import { platformFrame, storedBackgroundColor, storedZoomLevel, tone } from "./defaults"
 import { registerRendererProtocol } from "./protocol"
 import { loadWindow } from "./scheme"
 import { allowRendererPermissions, wireNavigationPolicy, wireRendererHeaders } from "./security"
@@ -42,12 +43,11 @@ const displays = {
 // bundle, the layers and the renderer boot. restoreWindows() adopts it through takeEarlyWindow().
 export function createEarlyWindow() {
   const ids = getStore().get(WINDOW_IDS_KEY)
-  // SAFETY: This is the persisted JSON boundary; validate the one ID used without loading Effect before the first window.
-  // oxlint-disable-next-line anti-slop/no-runtime-typeof
-  const id = Array.isArray(ids) && typeof ids[0] === "string" ? ids[0] : randomUUID()
+  const id = Array.isArray(ids) && Predicate.isString(ids[0]) ? ids[0] : randomUUID()
   const root = path.dirname(fileURLToPath(import.meta.url))
   const file = path.join(app.getPath("userData"), windowStateFile(id))
   const state = resolveWindowState(readWindowState(file), { width: 1280, height: 800 }, displays)
+  const zoom = storedZoomLevel()
   const iconDirectory = RENICODE ? "renicode" : "icons"
 
   const icons = app.isPackaged
@@ -64,15 +64,14 @@ export function createEarlyWindow() {
     title: RENICODE ? app.getName() : "OpenCode",
     icon: path.join(icons, `icon.${process.platform === "win32" ? "ico" : "png"}`),
     backgroundColor: storedBackgroundColor(),
-    titleBarStyle: process.platform === "darwin" || process.platform === "win32" ? "hidden" : undefined,
-    trafficLightPosition: process.platform === "darwin" ? { x: 14, y: 14 } : undefined,
-    frame: process.platform === "win32" ? false : undefined,
-    titleBarOverlay: process.platform === "win32" ? titlebarOverlay() : undefined,
+    ...platformFrame(tone(), zoom),
     webPreferences: {
       preload: path.join(root, "../preload/index.cjs"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // The renderer boots in this window, so it starts at the saved zoom instead of jumping to it later.
+      zoomFactor: zoom,
       additionalArguments: windowArguments(id),
     },
   })

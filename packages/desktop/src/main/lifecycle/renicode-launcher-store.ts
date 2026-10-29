@@ -8,6 +8,7 @@ export type Slot = {
   storage_hash: string
   files: string
   reporting: number
+  profile?: string
 }
 
 export type LaunchState = {
@@ -49,31 +50,51 @@ export class RenicodeLauncherStore {
         id INTEGER PRIMARY KEY, time INTEGER NOT NULL, phase TEXT NOT NULL, slot TEXT,
         session_id TEXT, note TEXT
       );
+      CREATE TABLE IF NOT EXISTS slot_profile (name TEXT PRIMARY KEY, directory TEXT NOT NULL);
     `)
   }
 
   state() {
+    // SAFETY: the constructor creates the singleton row; launcher writes preserve these columns and slot names.
     return this.db
       .prepare("SELECT active, previous, pending, guardian_pid FROM control WHERE id = 1")
       .get() as LaunchState
   }
 
   slot(name: "A" | "B") {
-    return this.db.prepare("SELECT * FROM slot WHERE name = ?").get(name) as Slot | undefined
+    // SAFETY: install writes Slot fields in schema order; a missing name returns undefined.
+    const slot = this.db.prepare("SELECT * FROM slot WHERE name = ?").get(name) as Slot | undefined
+
+    if (!slot) return undefined
+    const profile = this.db.prepare("SELECT directory FROM slot_profile WHERE name = ?").get(name)
+
+    return profile ? { ...slot, profile: String(profile.directory) } : slot
   }
 
   install(slot: Slot, session?: string, note?: string) {
     return this.transaction(() => {
       const state = this.state()
+
       if (state.pending || state.active === slot.name) throw new Error("Slot is active or an update is already pending")
       const active = state.active ? this.slot(state.active) : undefined
-      if (active && (active.cli_hash !== slot.cli_hash || active.storage_hash !== slot.storage_hash))
+
+      if (
+        active &&
+        (active.cli_hash !== slot.cli_hash || active.storage_hash !== slot.storage_hash) &&
+        (!slot.reporting || !slot.profile || slot.profile === active.profile)
+      )
         throw new Error("Update changes the backend or desktop storage contract; rollback is not safe")
+
+      if (active && active.cli_hash === slot.cli_hash && active.storage_hash === slot.storage_hash && slot.profile !== active.profile)
+        throw new Error("A compatible update must retain the active profile")
       // Reusing the inactive slot replaces the older fallback, not the current stable version.
       this.db.prepare("UPDATE control SET previous = NULL WHERE id = 1 AND previous = ?").run(slot.name)
       this.db
         .prepare("INSERT OR REPLACE INTO slot VALUES (?, ?, ?, ?, ?, ?, ?)")
         .run(slot.name, slot.directory, slot.version, slot.cli_hash, slot.storage_hash, slot.files, slot.reporting)
+      this.db.prepare("DELETE FROM slot_profile WHERE name = ?").run(slot.name)
+
+      if (slot.profile) this.db.prepare("INSERT INTO slot_profile VALUES (?, ?)").run(slot.name, slot.profile)
       this.db
         .prepare(active ? "UPDATE control SET pending = ? WHERE id = 1" : "UPDATE control SET active = ? WHERE id = 1")
         .run(slot.name)
@@ -92,11 +113,14 @@ export class RenicodeLauncherStore {
   rollback() {
     this.transaction(() => {
       const state = this.state()
+
       if (state.pending) {
         this.db.prepare("UPDATE control SET pending = NULL WHERE id = 1").run()
         this.record("rejected", state.pending)
+
         return
       }
+
       if (!state.previous) throw new Error("No previous version is available")
       this.db.prepare("UPDATE control SET active = previous, previous = active WHERE id = 1").run()
       this.record("rolled-back", state.previous)
@@ -108,6 +132,7 @@ export class RenicodeLauncherStore {
   }
 
   run(id: string) {
+    // SAFETY: begin and report own all run writes and preserve LaunchRun fields; an unknown ID returns undefined.
     return this.db.prepare("SELECT * FROM run WHERE id = ?").get(id) as LaunchRun | undefined
   }
 
@@ -132,9 +157,11 @@ export class RenicodeLauncherStore {
 
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE")
+
     try {
       const result = fn()
       this.db.exec("COMMIT")
+
       return result
     } catch (error) {
       this.db.exec("ROLLBACK")

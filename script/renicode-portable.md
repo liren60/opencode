@@ -25,14 +25,16 @@ bun script/deploy-renicode.ts --launcher-only
 在源码目录运行：
 
 ```powershell
-bun packages/desktop/scripts/renicode-launcher.ts status
+bun packages/desktop/script/renicode-launcher.ts status
 # 先正常退出由启动器管理的桌面，再执行：
-bun packages/desktop/scripts/renicode-launcher.ts rollback
+bun packages/desktop/script/renicode-launcher.ts rollback
 ```
 
 启动器将活动槽位、候选槽位、运行结果和任务交接写入独立的 `launcher.sqlite`。可以在部署时用 `--session` 和 `--note` 记录交接。恢复现有会话不等于自动发送新提示；这一版不会自行调用模型或消耗模型 token。
 
 ## 回退边界
+
+以下同指纹更新共用一个 profile；OpenCode 2.2 这种后台或桌面存储不兼容更新必须使用下节的独立代际流程，不能绕过指纹检查。
 
 - 后台 CLI 必须逐字节一致；桌面迁移、迁移器、数据库 schema 的构建指纹必须一致，否则拒绝升级。
 - 第一次从已有本机安装导入，需要显式信任该安装，且它的迁移记录必须匹配源码。该初始化不是对任意旧版本的自动兼容检测。
@@ -42,3 +44,24 @@ bun packages/desktop/scripts/renicode-launcher.ts rollback
 - 重复点击入口仍会检查槽位文件完整性。缺失文件会写入交接日志；若文件被安全软件隔离，应核查保护历史记录，而不是绕过检查。
 - A/B 共用同一独立后台服务及暂存 CLI；安全软件阻止后台程序时，回退桌面版本不能修复这个共同故障。
 - 槽位目录不可变，部署不会删除历史包；当前实现需人工管理历史包的磁盘占用。
+
+## 不兼容更新：版本化 profile
+
+```powershell
+bun script/deploy-renicode.ts --check --generation
+```
+
+`--check` 包含构建和部署写入，不是 dry-run。`--generation` 只暂存不可变程序包和候选清单，不复制 profile、不写自动 pending、不启动 guardian。旧版继续使用原程序/原 profile；不要直接运行新版 EXE，它要求 migration-aware launcher 提供已准备的代际。
+
+暂存输出的 `stagedGeneration` 是代际 ID。**只有用户正常退出桌面、guardian 已退出且旧后台已正常停止后**，才显式执行：
+
+```powershell
+bun packages/desktop/script/renicode-launcher.ts prepare-generation --generation <stagedGeneration>
+bun packages/desktop/script/renicode-launcher.ts status
+# 核对 pending 与独立 profile 绑定后，显式启动；不安排无人值守迁移：
+bun packages/desktop/script/renicode-launcher.ts launch
+```
+
+准备阶段拒绝活后台、执行恢复 claim、已有目标、链接或损坏数据库；完整复制 profile 到 `generations/<id>/profile`，验证文件哈希和 SQLite 完整性/外键，过滤目标的旧 service lease 与路径 overrides，原 profile 不修改。新版使用独立配置、CLI 暂存及服务端口。复制中断的 `.preparing` 目录保留，不自动覆盖或删除。
+
+失败回退绑定旧程序和旧 profile；后续手动回退前也须正常退出新版桌面/guardian、正常停止新版后台。升级后新增聊天/设置保留在新版代际，旧 UI 不自动显示这些新增数据；跨代际合并不在本流程范围。原安装、程序历史与任一 profile 均不自动删除。正常退出门禁未满足时，保持“仅程序已暂存”，不能声称升级已激活。

@@ -9,8 +9,10 @@ import { migrations } from "../packages/desktop/src/main/storage/migration.gen"
 const repo = path.resolve(import.meta.dirname, "..")
 const root = path.join(process.env.LOCALAPPDATA!, "RenicodePortable")
 const baseline = path.join(process.env.LOCALAPPDATA!, "Programs", "renicode-desktop")
-const launcherScript = path.join(repo, "packages/desktop/scripts/renicode-launcher.ts")
+const launcherScript = path.join(repo, "packages/desktop/script/renicode-launcher.ts")
 const launcherOnly = process.argv.includes("--launcher-only")
+const generation = process.argv.includes("--generation")
+if (generation && launcherOnly) throw new Error("Generation staging is not launcher-only repair")
 const storage = new CryptoHasher("sha256")
 for (const name of ["migration.gen.ts", "migration.ts", "schema.ts"])
   storage.update(await file(path.join(repo, "packages/desktop/src/main/storage", name)).bytes())
@@ -67,7 +69,7 @@ await $`bun build --compile --no-compile-autoload-dotenv --no-compile-autoload-b
 if (!(await file(launcher).exists())) throw new Error("Launcher executable is missing; check antivirus protection history")
 
 if (!launcherOnly)
-  await $`bun ${launcherScript} deploy --root ${root} --source ${path.join(repo, "packages/desktop/dist-renicode/win-unpacked")} --note ${"Local portable update; restore existing sessions and verify startup"}`.cwd(
+  await $`bun ${launcherScript} ${generation ? "stage-generation" : "deploy"} --root ${root} --source ${path.join(repo, "packages/desktop/dist-renicode/win-unpacked")} --note ${generation ? "Incompatible update: package only; explicit stopped-profile preparation required" : "Local portable update; restore existing sessions and verify startup"}`.cwd(
     repo,
   )
 
@@ -108,7 +110,7 @@ await $`powershell.exe -NoLogo -NoProfile -NonInteractive -Command ${`
 
 // Start the independent guardian now. It waits for the installed desktop to close normally.
 // Start-Process detaches from the deployment runtime on Windows; unref() alone can exit before Bun starts a child.
-if (!launcherOnly) {
+if (!launcherOnly && !generation) {
   await $`powershell.exe -NoLogo -NoProfile -NonInteractive -Command ${"Start-Process -FilePath $env:RENICODE_PORTABLE_LAUNCHER -ArgumentList ('launch --root \"' + $env:RENICODE_PORTABLE_ROOT + '\"')"}`
     .env({ ...process.env, RENICODE_PORTABLE_ROOT: root, RENICODE_PORTABLE_LAUNCHER: launcher })
     .cwd(repo)
@@ -131,5 +133,7 @@ if (!launcherOnly) {
 console.log(
   launcherOnly
     ? `A/B launcher entry repaired: ${launcher}. Slots and sessions were not changed; no desktop was started.`
-    : `Portable deployment staged at ${root}. Existing desktop was not stopped.`,
+    : generation
+      ? `Generation package staged at ${root}. No profile was copied and no guardian was started. Prepare explicitly after normal desktop and backend shutdown.`
+      : `Portable deployment staged at ${root}. Existing desktop was not stopped.`,
 )

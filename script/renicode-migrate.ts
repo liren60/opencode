@@ -1,1 +1,1 @@
-await import("../packages/desktop/scripts/renicode-migrate")
+await import("../packages/desktop/script/renicode-migrate")

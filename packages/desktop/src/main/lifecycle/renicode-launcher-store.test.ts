@@ -19,6 +19,7 @@ const baseline: Slot = {
 test("deployment and task handoff survive closing and reopening the independent launcher", async () => {
   const root = await mkdtemp(path.join(tmpdir(), "renicode-launcher-"))
   const first = new RenicodeLauncherStore(path.join(root, "launcher.sqlite"))
+
   try {
     first.install(baseline)
     first.install({ ...baseline, name: "B", directory: "candidate" }, "ses_resume", "verify candidate")
@@ -26,7 +27,9 @@ test("deployment and task handoff survive closing and reopening the independent 
   } finally {
     first.close()
   }
+
   const resumed = new RenicodeLauncherStore(path.join(root, "launcher.sqlite"))
+
   try {
     expect(resumed.state()).toMatchObject({ active: "A", pending: "B" })
     expect(resumed.run("startup")?.status).toBe("booting")
@@ -44,6 +47,7 @@ test("deployment and task handoff survive closing and reopening the independent 
 
 test("reusing the inactive slot cannot turn an untested candidate into the previous stable version", () => {
   const store = new RenicodeLauncherStore(":memory:")
+
   try {
     store.install(baseline)
     store.install({ ...baseline, name: "B", directory: "stable-b" })
@@ -64,11 +68,14 @@ test.each([
   { name: "confirmed candidate can roll back to its previous slot", action: "rollback", active: "A", previous: "B" },
 ])("$name", (row) => {
   const store = new RenicodeLauncherStore(":memory:")
+
   try {
     store.install(baseline)
     store.install({ ...baseline, name: "B", directory: "candidate", reporting: 1 }, "ses_example", "verify update")
     expect(store.state()).toMatchObject({ active: "A", pending: "B", previous: null })
+
     if (row.action !== "reject") store.confirm("B")
+
     if (row.action !== "confirm") store.rollback()
     expect(store.state()).toMatchObject({ active: row.active, previous: row.previous, pending: null })
     expect(store.db.prepare("SELECT session_id, note FROM handoff WHERE phase = 'staged'").get()).toEqual({
@@ -86,6 +93,7 @@ test.each([
   { name: "active slot overwrite", candidate: { ...baseline, directory: "replacement" } },
 ])("$name is rejected without changing the deployment", (row) => {
   const store = new RenicodeLauncherStore(":memory:")
+
   try {
     store.install(baseline)
     expect(() => store.install(row.candidate)).toThrow()
@@ -102,6 +110,7 @@ test.each([{ status: "clean" as const }, { status: "fault" as const }])(
   "$status cannot be overwritten by delayed readiness",
   (row) => {
     const store = new RenicodeLauncherStore(":memory:")
+
     try {
       store.begin("run", "A")
       setSystemTime(new Date("2026-10-26T00:00:00Z"))
@@ -116,3 +125,23 @@ test.each([{ status: "clean" as const }, { status: "fault" as const }])(
     }
   },
 )
+
+test("incompatible generation retains separate profiles through promotion and rollback", () => {
+  const store = new RenicodeLauncherStore(":memory:")
+
+  try {
+    store.install(baseline)
+    expect(() => store.install({ ...baseline, name: "B", cli_hash: "new", reporting: 1 })).toThrow()
+    store.install({ ...baseline, name: "B", cli_hash: "new", storage_hash: "new-storage", reporting: 1, profile: "new-profile" })
+    store.confirm("B")
+    expect(store.slot("B")?.profile).toBe("new-profile")
+    expect(store.slot("A")?.profile).toBeUndefined()
+    expect(() => store.install({ ...baseline, cli_hash: "newer", profile: "new-profile", reporting: 1 })).toThrow()
+    store.rollback()
+    expect(store.state().active).toBe("A")
+    expect(store.slot("B")?.profile).toBe("new-profile")
+    store.rollback()
+    expect(store.state().active).toBe("B")
+    expect(store.slot("B")?.profile).toBe("new-profile")
+  } finally { store.close() }
+})

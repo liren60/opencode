@@ -33,7 +33,8 @@ export const preferApplicationEnvironment = Effect.gen(function* () {
       OPENCODE_CLIENT: "desktop",
     })
 
-    if (RENICODE) Object.assign(process.env, renicodeEnvironment(app.getPath("userData")))
+    if (RENICODE && !process.env.OPENCODE_DESKTOP_TEST_ROOT && process.env.OPENCODE_TEST_ONBOARDING !== "1")
+      Object.assign(process.env, renicodeEnvironment(app.getPath("userData")))
   })
 })
 
@@ -41,7 +42,7 @@ export const prepareDesktop = Effect.gen(function* () {
   const path = yield* Path.Path
   const paths = yield* DesktopPaths.resolve
 
-  if (app.isPackaged || process.env.OPENCODE_DESKTOP_DISABLE_PROTOCOL_REGISTRATION !== "1")
+  if ((app.isPackaged && !process.env.OPENCODE_DESKTOP_TEST_ROOT) || process.env.OPENCODE_DESKTOP_DISABLE_PROTOCOL_REGISTRATION !== "1")
     app.setAsDefaultProtocolClient(RENICODE ? "renicode" : "opencode")
   const runFork = Effect.runForkWith(yield* Effect.context())
   setProtocolReporter((level, message, data) =>

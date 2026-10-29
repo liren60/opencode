@@ -27,7 +27,7 @@ const fixture = test.extend<{ site: Site }, { builds: Record<string, Record<stri
       try {
         for (const version of ["old", "new"]) {
           const root = join(directory, version)
-          const outDir = join(root, "dist")
+          const outDir = join(root, "output")
           await mkdir(join(root, "public", "nested"), { recursive: true })
           await Promise.all(
             Object.entries({
@@ -51,7 +51,7 @@ const fixture = test.extend<{ site: Site }, { builds: Record<string, Record<stri
             root,
             logLevel: "silent",
             build: { outDir, assetsDir: "_assets", sourcemap: true },
-            plugins: serviceWorker(outDir),
+            plugins: serviceWorker(),
           })
           builds[version] = Object.fromEntries(
             await Promise.all(
@@ -384,7 +384,8 @@ test("the production build precaches every deployable file except on-demand Offi
   page,
   context,
 }) => {
-  const directory = new URL("../../dist/", import.meta.url)
+  // An isolated --outDir build can be tested without replacing a running fixture server's assets.
+  const directory = new URL(process.env.PLAYWRIGHT_BUILD_URL ?? "../../dist/", import.meta.url)
 
   const deployable = (await readdir(directory, { recursive: true, withFileTypes: true }))
     .filter((entry) => entry.isFile())
@@ -455,7 +456,7 @@ test("the production build precaches every deployable file except on-demand Offi
 })
 
 test("the production build installs as an app behind an authenticating proxy", async () => {
-  const directory = new URL("../../dist/", import.meta.url)
+  const directory = new URL(process.env.PLAYWRIGHT_BUILD_URL ?? "../../dist/", import.meta.url)
 
   const server = createServer(async (request, response) => {
     // Model a reverse proxy that rejects every request without the signed-in user's cookie.

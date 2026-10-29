@@ -13,16 +13,23 @@ export function onDemandAsset(path: string) {
   return officeAsset.test(path)
 }
 
-export function serviceWorker(directory: string) {
+export function serviceWorker() {
+  const output = { directory: "" }
+
   return VitePWA({
     strategies: "generateSW",
     registerType: "prompt",
     injectRegister: false,
     manifest: false,
+    integration: {
+      configureOptions(config) {
+        // CLI --outDir overrides must also select the files whose integrity is published in the worker.
+        output.directory = resolve(config.root, config.build.outDir)
+      },
+    },
     workbox: {
       // Workbox runs after Sentry's upload and cleanup, so do not publish an unuploaded map.
       sourcemap: false,
-      globDirectory: directory,
       clientsClaim: false,
       // Keep each open tab on its complete build until all old clients close.
       skipWaiting: false,
@@ -44,7 +51,7 @@ export function serviceWorker(directory: string) {
               // A revision labels a cache entry; integrity rejects mixed deployments
               // and HTML fallback responses instead of installing a broken build.
               integrity: `sha256-${createHash("sha256")
-                .update(await readFile(resolve(directory, entry.url)))
+                .update(await readFile(resolve(output.directory, entry.url)))
                 .digest("base64")}`,
             })),
           ),

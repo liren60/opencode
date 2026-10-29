@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto"
-import { mkdirSync, rmSync } from "node:fs"
+import { existsSync, mkdirSync, rmSync } from "node:fs"
 import { enableCompileCache } from "node:module"
 import { homedir, tmpdir } from "node:os"
 import path from "node:path"
 import { app } from "electron"
-import { APP_ID, APP_NAME, RENICODE } from "../constants"
-import { renicodeEnvironment } from "./renicode-profile"
+import { debugBuild, memoryLogInterval } from "@opencode/gui-plugins/debug/options"
+import { APP_ID, APP_NAME, CHANNEL, RENICODE } from "../constants"
+import { remoteDebuggingPort } from "../diagnostics/options"
+import { renicodeEnvironment, renicodeServicePort } from "./renicode-profile"
 
 const testOnboarding = process.env.OPENCODE_TEST_ONBOARDING === "1"
 
@@ -27,11 +29,32 @@ export function configureApplication() {
   const features = app.commandLine.getSwitchValue("enable-features")
   app.commandLine.appendSwitch("enable-features", features ? `${jsCallStackFeature},${features}` : jsCallStackFeature)
 
-  if (!app.isPackaged)
-    app.commandLine.appendSwitch("remote-debugging-port", process.env.OPENCODE_DESKTOP_REMOTE_DEBUGGING_PORT ?? "9222")
+  // Chromium animates each mouse-wheel notch on Linux; native Linux apps scroll by the full delta immediately.
+  if (process.platform === "linux") app.commandLine.appendSwitch("disable-smooth-scrolling")
+
+  const build = { packaged: app.isPackaged, channel: CHANNEL }
+  const debugPort = remoteDebuggingPort(build, process.env.OPENCODE_DESKTOP_REMOTE_DEBUGGING_PORT)
+
+  if (debugPort) app.commandLine.appendSwitch("remote-debugging-port", debugPort)
+
+  if (app.commandLine.hasSwitch("remote-debugging-port"))
+    app.commandLine.appendSwitch("remote-debugging-address", "127.0.0.1")
+
+  // Precise heap sizes need a launch switch. The debug bar's toggle starts the log without one.
+  if (debugBuild(build) && memoryLogInterval(process.env.OPENCODE_DESKTOP_MEMORY_LOG) !== undefined)
+    app.commandLine.appendSwitch("enable-precise-memory-info")
 
   const testRoot = createTestRoot()
-  app.setPath("userData", testRoot ? path.join(testRoot, "desktop") : path.join(app.getPath("appData"), APP_ID))
+  const generation = RENICODE ? process.env.RENICODE_PROFILE_DIR : undefined
+
+  if (generation && !path.isAbsolute(generation)) throw new Error("Renicode profile generation must be absolute")
+
+  if (RENICODE && !testRoot && (!generation || !existsSync(path.join(generation, "renicode-generation.json"))))
+    throw new Error("Renicode 2.2 requires a prepared profile generation; use the migration-aware launcher")
+
+  app.setPath("userData", testRoot ? path.join(testRoot, "desktop") : generation ?? path.join(app.getPath("appData"), APP_ID))
+
+  if (RENICODE) process.env.RENICODE_SERVER_PORT = String(generation || testRoot ? renicodeServicePort(generation ?? testRoot!) : 29123)
 
   if (RENICODE && !testRoot) {
     Object.assign(process.env, renicodeEnvironment(app.getPath("userData")))
@@ -80,6 +103,9 @@ function createTestRoot() {
   process.env.XDG_CONFIG_HOME = path.join(root, "config")
   process.env.XDG_CACHE_HOME = path.join(root, "cache")
   process.env.XDG_STATE_HOME = path.join(root, "state")
+  process.env.OPENCODE_CONFIG_DIR = path.join(root, "config", "opencode")
+
+  if (!testOnboarding) process.env.OPENCODE_DB = path.join(root, "data", "opencode.db")
 
   return root
 }

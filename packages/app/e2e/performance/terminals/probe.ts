@@ -1,5 +1,5 @@
 import { Terminal } from "ghostty-web"
-import { SerializeAddon } from "../../../../gui-extensions/src/terminal/serialize"
+import { SerializeAddon } from "../../../../gui-plugins/src/terminal/serialize"
 
 export type TerminalProbe = {
   term?: Terminal
@@ -39,7 +39,8 @@ Terminal.prototype.open = function (element) {
   open.call(this, element)
   // Ghostty does not expose render events. This benchmark-only wrapper observes its
   // actual renderer; it does not alter scheduling, parsing, or drawing.
-  const renderer = (this as unknown as { renderer: { render: (...args: unknown[]) => void } }).renderer
+  // SAFETY: ghostty-web keeps its renderer on this undeclared field; the probe only wraps its render method.
+  const renderer = (this as Terminal & { renderer: { render: (...args: unknown[]) => void } }).renderer
   const render = renderer.render
   let hidden = false
   renderer.render = function (...args) {
@@ -53,12 +54,21 @@ Terminal.prototype.open = function (element) {
 
   if (new URL(location.href).searchParams.has("terminalDrawProbe")) {
     const context = element.querySelector("canvas")!.getContext("2d")!
-    const draw = context.drawImage
-    context.drawImage = function (...args: unknown[]) {
+    const draw = context.drawImage.bind(context)
+    context.drawImage = function (
+      ...args:
+        | [CanvasImageSource, number, number]
+        | [CanvasImageSource, number, number, number, number]
+        | [CanvasImageSource, number, number, number, number, number, number, number, number]
+    ) {
       probe.draws++
 
       if (hidden) probe.hiddenDraws++
-      draw.apply(this, args)
+
+      if (args.length === 3) return draw(...args)
+
+      if (args.length === 5) return draw(...args)
+      draw(...args)
     }
   }
 }
@@ -68,7 +78,7 @@ const write = Terminal.prototype.write
 Terminal.prototype.write = function (data, done) {
   probe.writes++
   probe.pending++
-  probe.bytes += typeof data === "string" ? new TextEncoder().encode(data).byteLength : data.byteLength
+  probe.bytes += data instanceof Uint8Array ? data.byteLength : new TextEncoder().encode(data).byteLength
 
   return write.call(this, data, () => {
     probe.pending--

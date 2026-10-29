@@ -1,8 +1,9 @@
 import { defineConfig } from "electron-vite"
 import type { Plugin } from "vite"
-import { pickerPlugin } from "./scripts/picker"
-import { nodePtyPackage } from "./scripts/utils"
 import { readFile } from "node:fs/promises"
+import { BetaNotes } from "./script/beta-notes"
+import { pickerPlugin } from "./script/picker"
+import { nodePtyPackage } from "./script/utils"
 
 function resolveChannel() {
   const raw = process.env.OPENCODE_CHANNEL
@@ -15,23 +16,6 @@ function resolveChannel() {
 }
 
 const appPlugin = (await import("@opencode/app/vite")).default
-
-const sentry =
-  process.env.SENTRY_AUTH_TOKEN && process.env.SENTRY_ORG && process.env.SENTRY_PROJECT
-    ? (await import("@sentry/vite-plugin")).sentryVitePlugin({
-        authToken: process.env.SENTRY_AUTH_TOKEN,
-        org: process.env.SENTRY_ORG,
-        project: process.env.SENTRY_PROJECT,
-        telemetry: false,
-        release: {
-          name: process.env.SENTRY_RELEASE ?? process.env.VITE_SENTRY_RELEASE,
-        },
-        sourcemaps: {
-          assets: "./out/renderer/**",
-          filesToDeleteAfterUpload: "./out/renderer/**/*.map",
-        },
-      })
-    : false
 
 // Every module the entry reaches through static imports lands in one chunk. Automatic splitting
 // otherwise fragments the initial graph into ~50 files shared with lazy routes, and each file costs
@@ -51,9 +35,18 @@ const initialChunk: Plugin = {
   },
 }
 
-export default defineConfig(({ command }) => {
+export default defineConfig(async ({ command }) => {
   const channel = resolveChannel()
   const nodePtyPkg = nodePtyPackage()
+
+  // Beta builds carry their commit and recent history for the updater's "What's new in beta"; the dev server carries
+  // them without asking GitHub, so the page can be tried; other channels none.
+  const betaNotes =
+    channel === "beta"
+      ? await BetaNotes.enrich(BetaNotes.embed(), { token: process.env.GITHUB_TOKEN })
+      : command === "serve"
+        ? BetaNotes.embed()
+        : undefined
 
   return {
     main: {
@@ -126,6 +119,8 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         "import.meta.env.VITE_RENICODE": JSON.stringify(process.env.RENICODE_BUILD === "1" ? "1" : "0"),
         "import.meta.env.OPENCODE_VERSION": JSON.stringify(process.env.OPENCODE_VERSION),
         "import.meta.env.VITE_OPENCODE_CHANNEL": JSON.stringify(channel),
+        "import.meta.env.OPENCODE_COMMIT": betaNotes ? JSON.stringify(betaNotes.sha) : "undefined",
+        "import.meta.env.OPENCODE_BETA_NOTES": betaNotes ? JSON.stringify(JSON.stringify(betaNotes)) : "undefined",
         "import.meta.env.OPENCODE_TEST_ONBOARDING": JSON.stringify(
           command === "serve" && process.env.OPENCODE_TEST_ONBOARDING === "1",
         ),
@@ -134,7 +129,6 @@ const require = __cjs_mod__.createRequire(import.meta.url);
         pickerPlugin(),
         appPlugin,
         initialChunk,
-        sentry,
         {
           name: "renicode:html-brand",
           async generateBundle() {
@@ -151,7 +145,7 @@ const require = __cjs_mod__.createRequire(import.meta.url);
             if (process.env.RENICODE_BUILD !== "1") return html
 
             return html
-              .replace("<title>OpenCode</title>", "<title>Renicode</title>")
+              .replace("<title data-sm>OpenCode</title>", "<title data-sm>Renicode</title>")
               .replaceAll("favicon-96x96-v3.png", "renicode-icon.png")
               .replaceAll("favicon-v3.svg", "renicode-icon.svg")
               .replaceAll("favicon-v3.ico", "renicode-icon.ico")

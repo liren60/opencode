@@ -1,4 +1,5 @@
 import { base64Encode } from "@opencode/util/encode"
+import { Match, Schema } from "effect"
 import { benchmark, benchmarkDiagnostics, expect } from "../benchmark"
 import { mockOpenCodeServer } from "../../utils/mock-server"
 import { expectSessionTitle } from "../../utils/waits"
@@ -52,7 +53,7 @@ benchmark.use({
 
 for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-cleanup"] as const) {
   benchmark(`composer-write-batch: ${scenario}`, async ({ page, report }, testInfo) => {
-    const submitted: Record<string, unknown>[] = []
+    const submitted: Schema.JsonObject[] = []
     await mockOpenCodeServer(page, {
       directory: fixture.directory,
       project: fixture.project,
@@ -67,7 +68,7 @@ for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-clea
 
         const probe: Probe = { active: false, encodes: 0, bytes: 0, inputs: 0, keyups: 0 }
 
-        ;(window as ProbeWindow).composerWriteBatch = probe
+        Object.assign(window, { composerWriteBatch: probe })
 
         // The draft adapter parses each schema-encoded composer document once before
         // its asynchronous blob walk. Count at this boundary, not at the IDB write
@@ -75,12 +76,12 @@ for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-clea
         if (counts) {
           const parse = JSON.parse
           JSON.parse = (value, reviver) => {
-            if (probe.active && typeof value === "string" && value.startsWith('{"prompt":[')) {
+            if (probe.active && value.startsWith('{"prompt":[')) {
               probe.encodes++
               probe.bytes += value.length
             }
 
-            return parse(value, reviver)
+            return reviver ? parse(value, reviver) : parse(value)
           }
         }
 
@@ -126,22 +127,58 @@ for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-clea
         })
 
         try {
-          const transaction = db.transaction("documents")
+          const transaction = db.transaction(["documents", "blobs"])
           const keys = transaction.objectStore("documents").getAllKeys()
           const values = transaction.objectStore("documents").getAll()
+          const blobKeys = transaction.objectStore("blobs").getAllKeys()
+          const blobs = transaction.objectStore("blobs").getAll()
           await new Promise<void>((resolve, reject) => {
             transaction.oncomplete = () => resolve()
             transaction.onerror = () => reject(transaction.error)
           })
           const index = keys.result.findIndex((key) => String(key).endsWith(`session:${sessionID}:prompt`))
           // Parse after disabling the count so the observation is not part of it.
+          // SAFETY: the page init script initializes this property before navigation.
           const probe = (window as ProbeWindow).composerWriteBatch
           const active = probe.active
           probe.active = false
           const value = index < 0 ? undefined : JSON.parse(values.result[index])
           probe.active = active
 
-          return value as { prompt: { content: string }[]; cursor: number; context: { items: unknown[] } } | undefined
+          // SAFETY: this benchmark owns the seeded composer document; the draft adapter externalizes long text as ordered blob ids.
+          const document = value as
+            | {
+                prompt: { content: string | { blob: { kind: "text"; ids: string[] } } }[]
+                cursor: number
+                context: { items: typeof items }
+              }
+            | undefined
+
+          if (!document) return undefined
+
+          // Observe committed bytes, not only the live editor or the raw text-reference object.
+          return {
+            ...document,
+            prompt: await Promise.all(
+              document.prompt.map(async (part) => ({
+                ...part,
+                content:
+                  part.content instanceof Object
+                    ? (
+                        await Promise.all(
+                          part.content.blob.ids.map(async (id) => {
+                            const index = blobKeys.result.indexOf(id)
+
+                            if (index < 0) throw new Error(`Missing committed draft blob: ${id}`)
+
+                            return blobs.result[index].text()
+                          }),
+                        )
+                      ).join("")
+                    : part.content,
+              })),
+            ),
+          }
         } finally {
           db.close()
         }
@@ -154,7 +191,9 @@ for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-clea
     await benchmarkDiagnostics(page).startTrace()
     const before = await cdp.send("Performance.getMetrics")
     await page.evaluate(() => {
-      ;(window as ProbeWindow).composerWriteBatch.active = true
+      // SAFETY: the page init script initializes this property before navigation.
+      const probe = (window as ProbeWindow).composerWriteBatch
+      probe.active = true
       performance.mark("composer-write-batch-start")
     })
     const start = performance.now()
@@ -166,14 +205,18 @@ for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-clea
     if (scenario === "cursor-noop") await editor.press("ArrowRight")
 
     if (scenario === "submit-cleanup") await editor.press("Enter")
-    const expectedText = scenario === "typing" ? text + addition : scenario === "submit-cleanup" ? "" : text
 
-    const expectedCursor =
-      scenario === "typing"
-        ? text.length + addition.length
-        : scenario === "submit-cleanup"
-          ? 0
-          : text.length - Number(scenario === "cursor-movement")
+    const expectedText = Match.value(scenario).pipe(
+      Match.when("typing", () => text + addition),
+      Match.when("submit-cleanup", () => ""),
+      Match.orElse(() => text),
+    )
+
+    const expectedCursor = Match.value(scenario).pipe(
+      Match.when("typing", () => text.length + addition.length),
+      Match.when("submit-cleanup", () => 0),
+      Match.orElse(() => text.length - Number(scenario === "cursor-movement")),
+    )
 
     await expect(editor).toHaveText(expectedText)
     await expect.poll(async () => (await stored())?.cursor).toBe(expectedCursor)
@@ -182,6 +225,7 @@ for (const scenario of ["typing", "cursor-movement", "cursor-noop", "submit-clea
 
     const probe = await page.evaluate(() => {
       performance.mark("composer-write-batch-end")
+      // SAFETY: the page init script initializes this property before navigation.
       const probe = (window as ProbeWindow).composerWriteBatch
       probe.active = false
 

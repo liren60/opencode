@@ -3,6 +3,7 @@ import { RENICODE } from "../constants"
 import { RenicodeLauncherStore } from "./renicode-launcher-store"
 
 let store: RenicodeLauncherStore | undefined
+
 let run: string | undefined
 
 export function installLauncherReporting() {
@@ -27,11 +28,15 @@ export function installLauncherReporting() {
 /** Called only after IPC installation and a successful authenticated backend health request. */
 export function reportLauncherReady() {
   if (!store || !run) return
+
   const ready = () => {
     if (run) store?.report(run, "ready")
   }
+
   const win = BrowserWindow.getAllWindows()[0]
+
   if (!win || win.isDestroyed()) return
+
   if (!win.webContents.isLoading() && win.webContents.getURL()) return ready()
   win.webContents.once("did-finish-load", ready)
 }
