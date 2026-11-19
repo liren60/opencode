@@ -3,7 +3,7 @@
 import { generateNeutralScale, hexToOklch, oklchToHex, shift } from "../color"
 import { mapV2Foreground } from "./foreground"
 import { mapV2Semantics, mergeV2Tokens } from "./mapping"
-import type { DesktopTheme, HexColor, ResolvedV2Theme, ThemeVariant, V2ColorValue } from "../types"
+import type { DesktopTheme, HexColor, ResolvedV2Theme, ThemeVariant } from "../types"
 import { V2_PRIMITIVES_DEFAULT } from "./default-primitives"
 
 const V2_STEPS = [100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, 1100, 1200] as const
@@ -64,8 +64,8 @@ function generateV2NeutralScale(neutral: HexColor, ink: HexColor, isDark: boolea
   return isDark ? scale.toReversed() : scale
 }
 
-function assignHueRamp(prefix: string, scale: HexColor[]): Record<string, V2ColorValue> {
-  const tokens: Record<string, V2ColorValue> = {}
+function assignHueRamp(prefix: string, scale: HexColor[]) {
+  const tokens: Record<string, HexColor> = {}
 
   for (let i = 0; i < V2_STEPS.length; i++) {
     tokens[`v2-${prefix}-${V2_STEPS[i]}`] = scale[i]!
@@ -115,7 +115,7 @@ function readPalette(variant: ThemeVariant): PaletteInput {
 }
 
 /** Build v2 primitive ramps (100 = lightest). Alpha ramps are static in `v2/styles/colors.css`. */
-export function generateV2Primitives(variant: ThemeVariant, isDark: boolean): Record<string, V2ColorValue> {
+export function generateV2Primitives(variant: ThemeVariant, isDark: boolean) {
   const colors = readPalette(variant)
   const grey = generateV2NeutralScale(colors.neutral, colors.ink, isDark)
   const blue = generateV2HueScale(colors.interactive, isDark)
@@ -149,7 +149,7 @@ export function resolveThemeVariantV2(variant: ThemeVariant, isDark: boolean): R
   return mergeV2Tokens(primitives, semantics, foreground, variant.v2Overrides ?? {})
 }
 
-export function resolveThemeV2(theme: DesktopTheme): { light: ResolvedV2Theme; dark: ResolvedV2Theme } {
+export function resolveThemeV2(theme: DesktopTheme) {
   return {
     light: resolveThemeVariantV2(theme.light, false),
     dark: resolveThemeVariantV2(theme.dark, true),

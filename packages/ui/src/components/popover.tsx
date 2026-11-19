@@ -40,10 +40,15 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
     "modal",
   ])
 
-  const [state, setState] = createStore({
-    contentRef: undefined as HTMLElement | undefined,
-    triggerRef: undefined as HTMLElement | undefined,
-    dismiss: null as "escape" | "outside" | null,
+  const [state, setState] = createStore<{
+    contentRef: HTMLElement | undefined
+    triggerRef: HTMLElement | undefined
+    dismiss: "escape" | "outside" | null
+    uncontrolledOpen: boolean
+  }>({
+    contentRef: undefined,
+    triggerRef: undefined,
+    dismiss: null,
     uncontrolledOpen: local.defaultOpen ?? false,
   })
 
@@ -150,11 +155,11 @@ export function Popover<T extends ValidComponent = "div">(props: PopoverProps<T>
 
   return (
     <Kobalte gutter={4} {...rest} open={opened()} onOpenChange={onOpenChange} modal={local.modal ?? false}>
-      <Kobalte.Trigger
+      <Kobalte.Trigger<T>
         ref={(el: HTMLElement) => setState("triggerRef", el)}
         as={local.triggerAs ?? "div"}
         data-slot="popover-trigger"
-        {...(local.triggerProps as any)}
+        {...(local.triggerProps as ComponentProps<T>)}
       >
         {local.trigger}
       </Kobalte.Trigger>

@@ -123,7 +123,12 @@ test("groups and filters workspace inventory by project", () => {
 })
 
 test("reports every workspace deletion condition", () => {
-  const session = (directory: string) => ({ location: { directory }, time: { created: 1, updated: 1 } }) as SessionInfo
+  const session = (directory: string) => ({
+    id: "session", projectID: "project", cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+    location: { directory }, time: { created: 1, updated: 1 },
+  }) satisfies SessionInfo
+
   expect(
     inspectWorkspaceDeletion({
       workspace: "/workspace",
@@ -153,7 +158,7 @@ test("reports every workspace deletion condition", () => {
     inspectWorkspaceDeletion({
       workspace: "/workspace",
       sessions: [
-        { location: { directory: "/workspace" }, time: { created: 1, updated: 1, archived: 2 } } as SessionInfo,
+        { ...session("/workspace"), time: { created: 1, updated: 1, archived: 2 } },
       ],
       status: "clean",
     }),
@@ -162,7 +167,9 @@ test("reports every workspace deletion condition", () => {
 
 test("groups nested non-archived workspace sessions by latest activity", () => {
   const session = (id: string, directory: string, updated: number, archived?: number) =>
-    ({ id, location: { directory }, time: { created: 1, updated, archived } }) as SessionInfo
+    ({ id, projectID: "project", cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      location: { directory }, time: { created: 1, updated, archived } }) satisfies SessionInfo
 
   const sessions = sessionsForWorkspace(
     [
@@ -179,7 +186,9 @@ test("groups nested non-archived workspace sessions by latest activity", () => {
 
 test("merges workspace placement by freshness with authoritative server ties", () => {
   const session = (directory: string, updated: number) =>
-    ({ id: "session", location: { directory }, time: { created: 1, updated } }) as SessionInfo
+    ({ id: "session", projectID: "project", cost: 0,
+      tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
+      location: { directory }, time: { created: 1, updated } }) satisfies SessionInfo
 
   expect(
     mergeWorkspaceSessionInventory([session("/destination", 3)], [session("/source", 2)])[0]?.location.directory,

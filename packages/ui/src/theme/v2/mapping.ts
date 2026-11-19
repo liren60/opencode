@@ -3,7 +3,7 @@ import { V2_AVATAR_DARK, V2_AVATAR_LIGHT } from "./avatar"
 
 const ref = (name: string): V2ColorValue => `var(--${name})`
 
-const lightAgentTokens: Record<string, V2ColorValue> = {
+const lightAgentTokens = {
   "v2-agent-plan-solid": ref("v2-pink-800"),
   "v2-agent-plan-border": "rgba(200, 61, 139, 0.20)",
   "v2-agent-plan-background": "rgba(253, 236, 243, 0.10)",
@@ -17,7 +17,7 @@ const lightAgentTokens: Record<string, V2ColorValue> = {
   "v2-agent-writer-solid": ref("v2-purple-700"),
 }
 
-const darkAgentTokens: Record<string, V2ColorValue> = {
+const darkAgentTokens = {
   "v2-agent-plan-solid": ref("v2-pink-400"),
   "v2-agent-plan-border": "rgba(247, 153, 198, 0.20)",
   "v2-agent-plan-background": "rgba(170, 53, 118, 0.05)",
@@ -31,7 +31,7 @@ const darkAgentTokens: Record<string, V2ColorValue> = {
   "v2-agent-writer-solid": ref("v2-purple-400"),
 }
 
-const light: Record<string, V2ColorValue> = {
+const light = {
   "v2-background-bg-base": ref("v2-grey-100"),
   "v2-background-bg-deep": ref("v2-grey-200"),
   "v2-background-bg-layer-01": ref("v2-grey-300"),
@@ -99,7 +99,7 @@ const light: Record<string, V2ColorValue> = {
   "v2-illustration-illustration-layer-03": ref("v2-grey-500"),
 }
 
-const dark: Record<string, V2ColorValue> = {
+const dark = {
   "v2-background-bg-base": ref("v2-grey-1000"),
   "v2-background-bg-deep": ref("v2-grey-1100"),
   "v2-background-bg-layer-01": ref("v2-grey-800"),

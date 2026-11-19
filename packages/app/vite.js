@@ -62,6 +62,7 @@ const bundleNestedWorkerDeps = {
   name: "opencode-desktop:bundle-nested-worker-deps",
   resolveId(id, importer) {
     if (!importer || !importer.includes("node_modules")) return
+
     if (!workerDeps.some((dep) => id === dep || id.startsWith(`${dep}/`))) return
 
     try {

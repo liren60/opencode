@@ -1,3 +1,5 @@
+import { Option, Predicate, Schema } from "effect"
+
 export type ConfigInvalidError = {
   name: "ConfigInvalidError"
   data: {
@@ -16,6 +18,32 @@ export type ProviderModelNotFoundError = {
   }
 }
 
+const decodeConfigInvalidError = Schema.decodeUnknownOption(
+  Schema.Struct({
+    name: Schema.Literal("ConfigInvalidError"),
+    data: Schema.Struct({
+      path: Schema.optional(Schema.String),
+      message: Schema.optional(Schema.String),
+      issues: Schema.optional(
+        Schema.mutable(
+          Schema.Array(Schema.Struct({ message: Schema.String, path: Schema.mutable(Schema.Array(Schema.String)) })),
+        ),
+      ),
+    }),
+  }),
+)
+
+const decodeProviderModelNotFoundError = Schema.decodeUnknownOption(
+  Schema.Struct({
+    name: Schema.Literal("ProviderModelNotFoundError"),
+    data: Schema.Struct({
+      providerID: Schema.String,
+      modelID: Schema.String,
+      suggestions: Schema.optional(Schema.mutable(Schema.Array(Schema.String))),
+    }),
+  }),
+)
+
 type Translator = (key: string, vars?: Record<string, string | number>) => string
 
 function tr(translator: Translator | undefined, key: string, text: string, vars?: Record<string, string | number>) {
@@ -29,10 +57,12 @@ function tr(translator: Translator | undefined, key: string, text: string, vars?
 
 export function formatServerError(error: unknown, translate?: Translator, fallback?: string) {
   const unwrapped = unwrapNamedError(error)
+  const config = decodeConfigInvalidError(unwrapped)
 
-  if (isConfigInvalidErrorLike(unwrapped)) return parseReadableConfigInvalidError(unwrapped, translate)
+  if (Option.isSome(config)) return parseReadableConfigInvalidError(config.value, translate)
+  const model = decodeProviderModelNotFoundError(unwrapped)
 
-  if (isProviderModelNotFoundErrorLike(unwrapped)) return parseReadableProviderModelNotFoundError(unwrapped, translate)
+  if (Option.isSome(model)) return parseReadableProviderModelNotFoundError(model.value, translate)
 
   if (
     typeof unwrapped === "object" &&
@@ -55,7 +85,7 @@ export function formatServerError(error: unknown, translate?: Translator, fallba
 function unwrapNamedError(error: unknown): unknown {
   if (!(error instanceof Error) || !error.cause || typeof error.cause !== "object") return error
 
-  if ("body" in error.cause) return (error.cause as Record<string, unknown>).body
+  if ("body" in error.cause) return error.cause.body
 
   return error.cause
 }
@@ -77,23 +107,12 @@ export function isSessionNotFoundError(error: unknown, sessionID: string) {
   const unwrapped = unwrapNamedError(error)
 
   if (typeof unwrapped !== "object" || unwrapped === null) return false
-  const value = unwrapped as Record<string, unknown>
 
-  return value._tag === "SessionNotFoundError" && value.sessionID === sessionID
-}
-
-function isConfigInvalidErrorLike(error: unknown): error is ConfigInvalidError {
-  if (typeof error !== "object" || error === null) return false
-  const o = error as Record<string, unknown>
-
-  return o.name === "ConfigInvalidError" && typeof o.data === "object" && o.data !== null
-}
-
-function isProviderModelNotFoundErrorLike(error: unknown): error is ProviderModelNotFoundError {
-  if (typeof error !== "object" || error === null) return false
-  const o = error as Record<string, unknown>
-
-  return o.name === "ProviderModelNotFoundError" && typeof o.data === "object" && o.data !== null
+  return (
+    Predicate.isTagged(unwrapped, "SessionNotFoundError") &&
+    "sessionID" in unwrapped &&
+    unwrapped.sessionID === sessionID
+  )
 }
 
 export function parseReadableConfigInvalidError(errorInput: ConfigInvalidError, translator?: Translator) {

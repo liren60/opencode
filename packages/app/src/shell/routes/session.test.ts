@@ -2,6 +2,8 @@ import { describe, expect, test } from "bun:test"
 import { ServerConnection } from "@/runtime/server/registry"
 import { requireServerKey, rootSession, sessionHref } from "./session"
 
+type SessionParent = Parameters<typeof rootSession>[0]
+
 describe("session routes", () => {
   test("builds and decodes a server-keyed session route", () => {
     const server = ServerConnection.Key.make("https://example.com:4096")
@@ -16,15 +18,17 @@ describe("session routes", () => {
   })
 
   test("resolves the root session", async () => {
-    const sessions: Record<string, { id: string; parentID?: string }> = {
+    const sessions = {
       child: { id: "child", parentID: "parent" },
       parent: { id: "parent", parentID: "root" },
       root: { id: "root" },
     }
 
+    const lookup = new Map<string, SessionParent>(Object.entries(sessions))
+
     expect(
       await rootSession(sessions.child, async (id) => {
-        const session = sessions[id]
+        const session = lookup.get(id)
 
         if (!session) throw new Error(`Missing session: ${id}`)
 
@@ -34,13 +38,21 @@ describe("session routes", () => {
   })
 
   test("rejects a parent cycle", async () => {
-    const sessions: Record<string, { id: string; parentID?: string }> = {
+    const sessions = {
       child: { id: "child", parentID: "parent" },
       parent: { id: "parent", parentID: "child" },
     }
 
-    await expect(rootSession(sessions.child, async (id) => sessions[id]!)).rejects.toThrow(
-      "Session parent cycle: child",
-    )
+    const lookup = new Map<string, SessionParent>(Object.entries(sessions))
+
+    await expect(
+      rootSession(sessions.child, async (id) => {
+        const session = lookup.get(id)
+
+        if (!session) throw new Error(`Missing session: ${id}`)
+
+        return session
+      }),
+    ).rejects.toThrow("Session parent cycle: child")
   })
 })

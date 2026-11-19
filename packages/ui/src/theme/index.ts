@@ -7,6 +7,7 @@ export type {
   OklchColor,
   ResolvedTheme,
   ColorValue,
+  RgbaColor,
   CssVarRef,
   V2ColorValue,
   ResolvedV2Theme,

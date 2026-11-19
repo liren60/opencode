@@ -6,7 +6,7 @@ import { hash } from "./renicode-launcher-runtime"
 import { renicodeEnvironment } from "../src/main/lifecycle/renicode-profile"
 
 /** Copy only a stopped profile. The source is never changed and failed copies remain unpublished. */
-export async function prepareGeneration(source: string, destination: string) {
+export async function prepareGeneration(source: string, destination: string, options: { skipBunCache?: boolean } = {}) {
   const from = path.resolve(source)
   const to = path.resolve(destination)
   const relative = path.relative(from, to)
@@ -30,7 +30,8 @@ export async function prepareGeneration(source: string, destination: string) {
     throw error
   })
 
-  const files = await inventory(from)
+  const excluded = options.skipBunCache ? path.join("profile", "cache", ".bun", "install", "cache") : undefined
+  const files = await inventory(from, "", excluded)
 
   if (!files.includes("drafts.sqlite")) throw new Error("Source desktop database is missing")
 
@@ -40,7 +41,12 @@ export async function prepareGeneration(source: string, destination: string) {
   const temp = to + ".preparing"
   // mkdir, rather than a recursive copy, rejects an existing or interrupted destination.
   await mkdir(temp)
-  await Promise.all((await readdir(from)).map((name) => cp(path.join(from, name), path.join(temp, name), { recursive: true, errorOnExist: true, force: false })))
+  await Promise.all((await readdir(from)).map((name) => cp(path.join(from, name), path.join(temp, name), {
+    recursive: true,
+    errorOnExist: true,
+    force: false,
+    filter: (source) => path.relative(from, source) !== excluded,
+  })))
 
   for (const name of files) {
     if ((await hash(path.join(temp, name))) !== before[name] || (await hash(path.join(from, name))) !== before[name])
@@ -67,7 +73,7 @@ export async function prepareGeneration(source: string, destination: string) {
   }
 
   await assertProfileStopped(from)
-  await Bun.write(path.join(temp, "renicode-generation.json"), JSON.stringify({ source: from, created: Date.now(), files: before }, null, 2))
+  await Bun.write(path.join(temp, "renicode-generation.json"), JSON.stringify({ source: from, created: Date.now(), files: before, excluded: excluded ? [excluded] : [] }, null, 2))
   await rename(temp, to)
 
   return { directory: to, files: files.length }
@@ -97,14 +103,14 @@ export async function assertProfileStopped(directory: string) {
   }
 }
 
-async function inventory(root: string, directory = ""): Promise<string[]> {
-  return (await Promise.all((await readdir(path.join(root, directory))).map(async (name) => {
+async function inventory(root: string, directory = "", excluded?: string): Promise<string[]> {
+  return (await Promise.all((await readdir(path.join(root, directory))).filter((name) => path.join(directory, name) !== excluded).map(async (name) => {
     const relative = path.join(directory, name)
     const stat = await lstat(path.join(root, relative))
 
     if (stat.isSymbolicLink()) throw new Error("Profile contains a link; explicit migration review is required")
 
-    if (stat.isDirectory()) return inventory(root, relative)
+    if (stat.isDirectory()) return inventory(root, relative, excluded)
 
     if (!stat.isFile()) throw new Error("Profile contains a non-regular file")
 

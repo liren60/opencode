@@ -30,7 +30,7 @@ export function ProviderModelIcon(props: { provider: ModelProvider; class?: stri
       props.provider.canonical,
       props.provider.canonical?.replace(/-token-plan$/, ""),
       props.provider.id.replace(/^console-/, ""),
-    ].find((id): id is IconName => !!id && id !== "synthetic" && iconNames.includes(id as IconName))
+    ].find((id): id is IconName => !!id && id !== "synthetic" && iconNames.some((name) => name === id))
 
   return (
     <Switch>

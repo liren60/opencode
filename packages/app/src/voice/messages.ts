@@ -5,6 +5,7 @@ import type { SessionMessageInfo } from "@opencode/client/promise"
 export function messageExcerpts(messages: readonly SessionMessageInfo[]) {
   return messages.flatMap((message) => {
     if (message.type !== "assistant" && message.type !== "user" && message.type !== "synthetic") return []
+
     const text =
       message.type === "assistant"
         ? message.content.flatMap((part) => (part.type === "text" ? [part.text] : [])).join("\n")

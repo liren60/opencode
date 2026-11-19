@@ -58,8 +58,15 @@ describe("contrast icon-button tokens", () => {
 })
 
 function expectIconEmphasis(tokens: ResolvedV2Theme) {
-  const resolve = (value: string): HexColor =>
-    value.startsWith("var(--") ? resolve(tokens[value.slice(6, -1)]) : (value as HexColor)
+  const isHex = (value: string): value is HexColor => value.startsWith("#")
+
+  const resolve = (value: string): HexColor => {
+    if (value.startsWith("var(--")) return resolve(tokens[value.slice(6, -1)])
+
+    if (isHex(value)) return value
+
+    throw new Error(`Expected hex color, got ${value}`)
+  }
 
   const background = resolve(tokens["v2-background-bg-base"])
   const contrast = (role: string) => contrastRatio(resolve(tokens[`v2-icon-icon-${role}`]), background)

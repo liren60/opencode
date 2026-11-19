@@ -32,7 +32,7 @@ export type RadarDot = {
   /** Opacity for reduced motion: the sweep frozen a fifth of the way into its loop. */
   still: number
   /** Which of the keyframes the dot runs: radarKeyframes names them `name-0`, `name-1`… */
-  shape: number
+  keyframe: number
 }
 
 type Cell = { gx: number; gy: number }
@@ -45,7 +45,7 @@ export function radarDots() {
 /** The radar's keyframes, one per shape its dots run, named `name-0`, `name-1`… */
 export function radarKeyframes(name: string) {
   return layout()
-    .shapes.map((stops, index) => {
+    .keyframes.map((stops, index) => {
       const frames = stops
         .map(
           ([percent, level]) =>
@@ -73,18 +73,22 @@ function layout() {
     const others = placed.filter((other) => other !== dot && !other.steady && ringOf(other.cell) === ringOf(dot.cell))
     const behind = Math.min(...others.map((other) => frac(dot.at - other.at)))
     const ahead = Math.min(...others.map((other) => frac(other.at - dot.at)))
+
     return `${round(behind)} ${round(ahead)}`
   })
+
   const unique = [...new Set(keys.filter((key) => key !== ""))]
-  const shapes = unique.map((key) => {
+
+  const keyframes = unique.map((key) => {
     const [behind, ahead] = key.split(" ").map(Number)
+
     return headStops(behind! * 100, ahead! * 100)
   })
 
   const dots = placed.map((dot, index): RadarDot => {
-    const shape = Math.max(0, unique.indexOf(keys[index]!))
+    const keyframe = Math.max(0, unique.indexOf(keys[index]!))
     // The steady centre glows like the fresh trail, so the head stays the brightest dot.
-    const level = dot.steady ? trail[0]![1] : levelAt(shapes[shape]!, frac(0.22 - dot.at) * 100)
+    const level = dot.steady ? trail[0]![1] : levelAt(keyframes[keyframe]!, frac(0.22 - dot.at) * 100)
 
     return {
       x: round(8 + dot.cell.gx * pitch - size / 2),
@@ -93,11 +97,11 @@ function layout() {
       at: round(dot.at),
       steady: dot.steady,
       still: round(dim + (1 - dim) * level),
-      shape,
+      keyframe,
     }
   })
 
-  return { dots, shapes }
+  return { dots, keyframes }
 }
 
 // One dot's level through the loop, 0% being the moment the head passes it, with `behind` and `ahead` the percent of

@@ -78,12 +78,12 @@ export function matchModels<T extends { id: string; name: string; providerID: st
   if (!terms.length) return models
 
   return models
-    .map((model, index) => {
+    .flatMap((model, index) => {
       const haystack = modelWords(`${model.name} ${model.providerID}/${model.id}`)
+      const hits = terms.filter((term) => haystack.some((word) => word.startsWith(term))).length
 
-      return { model, index, hits: terms.filter((term) => haystack.some((word) => word.startsWith(term))).length }
+      return hits > 0 ? [{ model, index, hits }] : []
     })
-    .filter((item) => item.hits > 0)
     .toSorted((a, b) => b.hits - a.hits || a.index - b.index)
     .map((item) => item.model)
 }

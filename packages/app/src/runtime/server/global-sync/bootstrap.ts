@@ -42,10 +42,10 @@ function waitForPaint() {
 }
 
 function errors(list: PromiseSettledResult<unknown>[]) {
-  return list.filter((item): item is PromiseRejectedResult => item.status === "rejected").map((item) => item.reason)
+  return list.flatMap((item) => (item.status === "rejected" ? [item.reason] : []))
 }
 
-function runAll(list: Array<() => Promise<unknown>>) {
+function runAll<Value>(list: Array<() => Promise<Value | void>>) {
   return Promise.allSettled(list.map((item) => item()))
 }
 

@@ -10,6 +10,8 @@ import { sessionHref } from "@/shell/routes/session"
 import { findSessionTab, useTabs } from "@/shell/tabs/tabs"
 import type { CallState, createVoiceCall } from "./call"
 
+type ActiveCall = { call?: ReturnType<typeof createVoiceCall>; generation: number }
+
 export const { provider: VoiceProvider, use: useVoice } = createSimpleContext({
   name: "Voice",
   init: () => {
@@ -33,7 +35,7 @@ export const { provider: VoiceProvider, use: useVoice } = createSimpleContext({
       captions: [],
     })
 
-    const current: { call?: ReturnType<typeof createVoiceCall>; generation: number } = { generation: 0 }
+    const current: ActiveCall = { generation: 0 }
 
     // Resolves once the router shows href; voice must not report a move that didn't happen.
     const routed = (href: string, signal: AbortSignal) =>
@@ -115,6 +117,7 @@ export const { provider: VoiceProvider, use: useVoice } = createSimpleContext({
               platform,
               open: async (next, signal) => {
                 const href = sessionHref(server, next.id)
+
                 // Subagent sessions open inside their root session's tab, which the titlebar finds from the route.
                 const tab =
                   findSessionTab(tabs.store, server, next.id) ??

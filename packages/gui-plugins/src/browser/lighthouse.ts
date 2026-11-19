@@ -13,7 +13,8 @@ export async function audit(contents: WebContents, files: BrowserFiles, cdp: Cdp
 
     const value = Object.assign(emitter, {
       id: () => id,
-      send: (method: string, params?: object) => cdp.send(method as Parameters<Cdp["send"]>[0], params, id),
+      send: (method: string, params?: Parameters<Cdp["send"]>[1]) =>
+        cdp.send(method as Parameters<Cdp["send"]>[0], params, id),
       detach: async () => {
         sessions.delete(id)
         await contents.debugger.sendCommand("Target.detachFromTarget", { sessionId: id })

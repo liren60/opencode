@@ -25,7 +25,9 @@ describe("error status", () => {
   })
 
   test("ignores invalid and circular status values", () => {
-    const error: { status: number; cause?: unknown } = { status: 99 }
+    type StatusCause = { status: number; cause?: StatusCause }
+
+    const error: StatusCause = { status: 99 }
     error.cause = error
     expect(errorStatus(error)).toBeUndefined()
   })

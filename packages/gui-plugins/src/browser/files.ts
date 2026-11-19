@@ -35,12 +35,12 @@ export function createBrowserFiles(source: () => readonly string[]) {
       // setSavePath must run during Electron's synchronous will-download callback.
       mkdirSync(target, { recursive: true, mode: 0o700 })
 
-      const file = {
+      const file: NonNullable<ReturnType<typeof files.get>> = {
         id,
         name: name.slice(0, 2_048),
         mime,
         bytes: 0,
-        state: "pending" as "pending" | "completed" | "failed",
+        state: "pending",
         // A page receives this basename as the uploaded File.name, so spaces and non-ASCII stay;
         // only characters no supported filesystem accepts are replaced. Each file has its own
         // directory, so names never collide.

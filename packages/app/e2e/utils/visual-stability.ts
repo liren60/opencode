@@ -10,6 +10,8 @@ export * from "./visual-stability/index"
 
 const capturedFrames = Symbol("capturedFrames")
 
+type CapturedVisualTrace = VisualStabilityTrace & { [capturedFrames]?: CapturedFrame[] }
+
 export async function startVisualStabilityProbe(page: Page, regions: Record<string, VisualRegionDefinition>) {
   await startVisualProbe(page, regions)
 }
@@ -40,12 +42,14 @@ export async function expectVisualStability(
   trace: VisualStabilityTrace,
   options: VisualStabilityOptions = {},
 ) {
+  const captured: CapturedVisualTrace = trace
+
   await reportVisualStability(
     testInfo,
     name,
     {
       ...trace,
-      frames: (trace as VisualStabilityTrace & { [capturedFrames]?: CapturedFrame[] })[capturedFrames] ?? [],
+      frames: captured[capturedFrames] ?? [],
     },
     stabilityPlan(options),
   )

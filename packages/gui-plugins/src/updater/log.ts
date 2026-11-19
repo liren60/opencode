@@ -1,4 +1,4 @@
-import { Effect, Layer, Logger, References } from "effect"
+import { Effect, Layer, Logger, References, type LogLevel } from "effect"
 
 /** Services for running the updater's effects: every log goes to the desktop log file, debug included. */
 export function logContext(
@@ -8,11 +8,16 @@ export function logContext(
     const entry = Logger.formatStructured.log(options)
     const [message, ...details] = Array.isArray(options.message) ? options.message : [options.message]
     const detail = details.length === 1 && isRecord(details[0]) ? details[0] : details.length ? { details } : {}
-    log(LEVELS[options.logLevel] ?? "info", typeof message === "string" ? message : String(message), {
-      ...detail,
-      ...(Object.keys(entry.annotations).length === 0 ? {} : { annotations: entry.annotations }),
-      ...(entry.cause === undefined ? {} : { cause: entry.cause }),
-    })
+
+    // Keep the original call's message coercion before copying any detail getters.
+    const level = LEVELS[options.logLevel] ?? "info"
+    const text = String(message)
+    const data: Parameters<typeof log>[2] = { ...detail }
+
+    if (Object.keys(entry.annotations).length !== 0) data.annotations = entry.annotations
+
+    if (entry.cause !== undefined) data.cause = entry.cause
+    log(level, text, data)
   })
 
   return Effect.runSync(
@@ -27,7 +32,7 @@ export function logContext(
   )
 }
 
-const LEVELS: Partial<Record<string, "debug" | "info" | "warn" | "error">> = {
+const LEVELS: Partial<Record<LogLevel.LogLevel, "debug" | "info" | "warn" | "error">> = {
   Trace: "debug",
   Debug: "debug",
   Info: "info",

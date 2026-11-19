@@ -202,24 +202,24 @@ export async function setupTimelineBenchmark(
 
 export function buildInitialStreamEvent(deltaCount: number): EventPayload[] {
   return [
-    timelineEvent("session.text.started", { sessionID, assistantMessageID, ordinal: 0 }, true),
-    timelineEvent("session.text.delta", {
+    timelineEvent({ type: "session.text.started", data: { sessionID, assistantMessageID, ordinal: 0 } }),
+    timelineEvent({ type: "session.text.delta", data: {
       sessionID,
       assistantMessageID,
       ordinal: 0,
       delta: `Streaming${streamChunk(0, deltaCount + 1)}\n\n\`\`\`ts\nconst initial = true\n\`\`\``,
-    }),
+    } }),
   ]
 }
 
 export function buildStreamDeltaEvents(deltaCount: number): EventPayload[] {
   return Array.from({ length: deltaCount }, (_, index) =>
-    timelineEvent("session.text.delta", {
+    timelineEvent({ type: "session.text.delta", data: {
       sessionID,
       assistantMessageID,
       ordinal: 0,
       delta: streamChunk(index + 1, deltaCount + 1),
-    }),
+    } }),
   )
 }
 
@@ -230,7 +230,7 @@ function performanceTurn(index: number) {
   const before = historicalSource(index, false)
   const after = historicalSource(index, true)
 
-  const parts = [
+  const parts: ContentSeed[] = [
     ...(index % 5 === 0
       ? [
           {
@@ -241,7 +241,7 @@ function performanceTurn(index: number) {
             text: `Reviewing the existing implementation. ${"constraint analysis ".repeat(20)}`,
             time: { start: 1690000001000 + index * 2_000, end: 1690000001200 + index * 2_000 },
           },
-        ]
+        ] satisfies ContentSeed[]
       : []),
     {
       id: `prt_0000_${suffix}_assistant`,
@@ -270,7 +270,7 @@ function performanceTurn(index: number) {
               completed: 1690000001400 + index * 2_000,
             },
           },
-        ]
+        ] satisfies ContentSeed[]
       : []),
     ...(index % 12 === 0
       ? [
@@ -290,7 +290,7 @@ function performanceTurn(index: number) {
               completed: 1690000001500 + index * 2_000,
             },
           },
-        ]
+        ] satisfies ContentSeed[]
       : []),
     ...(index % 16 === 0
       ? [
@@ -316,9 +316,9 @@ function performanceTurn(index: number) {
               completed: 1690000001700 + index * 2_000,
             },
           },
-        ]
+        ] satisfies ContentSeed[]
       : []),
-  ] as unknown as ContentSeed[]
+  ]
 
   return [
     {
@@ -358,9 +358,9 @@ type ToolSeed = {
   name: string
   state: {
     status: "completed"
-    input: Record<string, unknown>
+    input: Record<string, JsonValue>
     content: [{ type: "text"; text: string }]
-    metadata: Record<string, unknown>
+    metadata: Record<string, JsonValue>
   }
   time: { created: number; ran: number; completed: number }
 }
@@ -380,30 +380,37 @@ function toolContent(part: ToolSeed): SessionMessageAssistant["content"][number]
     time: part.time,
     state: {
       status: "completed",
-      input: part.state.input as Record<string, JsonValue>,
+      input: part.state.input,
       content: part.state.content,
-      metadata: part.state.metadata as Record<string, JsonValue>,
+      metadata: part.state.metadata,
     },
   }
 }
 
 let eventSequence = 0
 
-function timelineEvent<Type extends "session.text.started" | "session.text.delta">(
-  type: Type,
-  data: Extract<OpenCodeEvent, { type: Type }>["data"],
-  durable = false,
-): Extract<OpenCodeEvent, { type: Type }> {
+function timelineEvent(event:
+  | Pick<Extract<OpenCodeEvent, { type: "session.text.started" }>, "type" | "data">
+  | Pick<Extract<OpenCodeEvent, { type: "session.text.delta" }>, "type" | "data">
+): Extract<OpenCodeEvent, { type: "session.text.started" | "session.text.delta" }> {
   eventSequence++
+
+  if (event.type === "session.text.started") return {
+    id: `evt_timeline_benchmark_${eventSequence}`,
+    created: 1700000002000 + eventSequence,
+    type: event.type,
+    data: event.data,
+    location: { directory },
+    durable: { aggregateID: sessionID, seq: eventSequence, version: 1 },
+  }
 
   return {
     id: `evt_timeline_benchmark_${eventSequence}`,
     created: 1700000002000 + eventSequence,
-    type,
-    data,
+    type: event.type,
+    data: event.data,
     location: { directory },
-    ...(durable ? { durable: { aggregateID: sessionID, seq: eventSequence, version: 1 } } : {}),
-  } as unknown as Extract<OpenCodeEvent, { type: Type }>
+  }
 }
 
 function historicalMarkdown(index: number) {

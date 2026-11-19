@@ -1495,6 +1495,7 @@ function turned(cells: number[][], turns: number) {
     (list) => list.map(([x, y]) => [-y, x]),
     cells,
   )
+
   const minX = Math.min(...rotated.map(([x]) => x))
   const minY = Math.min(...rotated.map(([, y]) => y))
 

@@ -1,24 +1,22 @@
 import { describe, expect, test, vi } from "bun:test"
 import { createScrollPersistence } from "./scroll"
 
+type ScrollSnapshot = Parameters<Parameters<typeof createScrollPersistence>[0]["onFlush"]>[1]
+
 describe("createScrollPersistence", () => {
   test("debounces persisted scroll writes", () => {
     vi.useFakeTimers()
 
     try {
-      const snapshot = {
-        session: {
-          review: { x: 0, y: 0 },
-        },
-      } as Record<string, Record<string, { x: number; y: number }>>
+      const snapshot = new Map<string, ScrollSnapshot>([["session", { review: { x: 0, y: 0 } }]])
 
-      const writes: Array<Record<string, { x: number; y: number }>> = []
+      const writes: ScrollSnapshot[] = []
 
       const scroll = createScrollPersistence({
         debounceMs: 10,
-        getSnapshot: (sessionKey) => snapshot[sessionKey],
+        getSnapshot: (sessionKey) => snapshot.get(sessionKey),
         onFlush: (sessionKey, next) => {
-          snapshot[sessionKey] = next
+          snapshot.set(sessionKey, next)
           writes.push(next)
         },
       })
@@ -46,20 +44,18 @@ describe("createScrollPersistence", () => {
   })
 
   test("reseeds empty cache after persisted snapshot loads", () => {
-    const snapshot = {
-      session: {},
-    } as Record<string, Record<string, { x: number; y: number }>>
+    const snapshot = new Map<string, ScrollSnapshot>([["session", {}]])
 
     const scroll = createScrollPersistence({
-      getSnapshot: (sessionKey) => snapshot[sessionKey],
+      getSnapshot: (sessionKey) => snapshot.get(sessionKey),
       onFlush: () => {},
     })
 
     expect(scroll.scroll("session", "review")).toBeUndefined()
 
-    snapshot.session = {
+    snapshot.set("session", {
       review: { x: 12, y: 34 },
-    }
+    })
 
     expect(scroll.scroll("session", "review")).toEqual({ x: 12, y: 34 })
     scroll.dispose()

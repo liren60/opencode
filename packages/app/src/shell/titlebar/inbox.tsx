@@ -15,7 +15,7 @@ import { Persist, persisted } from "@/runtime/persistence/storage"
 import { SessionTabAvatarView } from "@/shell/layout/session-tab-avatar"
 import { sessionTabTitle } from "./tab-title"
 import { sessionTitle } from "@/session/title"
-import { createSessionInbox, inboxArchived, inboxBusy, type InboxEntry, type InboxStatus } from "./inbox-model"
+import { createSessionInbox, inboxArchived, inboxBusy, type InboxEntry } from "./inbox-model"
 
 // `since` is when the inbox was first used; Recent only lists sessions that finished a run after it.
 const InboxState = Persistence.struct({
@@ -35,6 +35,7 @@ export function SidebarInbox() {
 
   const sections = createMemo(() => {
     const list = inbox.entries()
+
     // The most recently finished session comes first.
     const finished = list
       .filter((entry) => {
@@ -77,6 +78,7 @@ export function SidebarInbox() {
       await inbox.remove(props.entry)
       dialog.close()
     }
+
     return (
       <Dialog fit>
         <DialogHeader hideClose>
@@ -267,6 +269,12 @@ function InboxRow(props: {
     return seconds < 60 ? language.t("sidebar.inbox.time.now") : compact(seconds)
   }
 
+  const statusLabel = () => {
+    const current = status()
+
+    return current === "ready" ? age() : language.t(`sidebar.inbox.status.${current}`)
+  }
+
   return (
     <Menu.Context modal={false}>
       <Menu.Context.Trigger
@@ -306,7 +314,7 @@ function InboxRow(props: {
               >
                 <Show
                   when={status() === "working"}
-                  fallback={language.t(`sidebar.inbox.status.${status() as Exclude<InboxStatus, "ready">}`)}
+                  fallback={statusLabel()}
                 >
                   {/* Announce only the status: the ticking duration would be re-read every second. */}
                   <span class="sr-only">{language.t("sidebar.inbox.status.working")}</span>

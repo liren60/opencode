@@ -92,9 +92,9 @@ test("pointer selection, keyboard navigation, the empty state, and the local fin
     0, 4,
   ])
 
-  await view.search.fill("zzzzzzzzzz")
+  await view.search.fill("zzzz")
   await expect(view.results.getByRole("option")).toHaveCount(0)
-  await expect(view.settings.getByRole("status")).toHaveText('No results for "zzzzzzzzzz"')
+  await expect(view.settings.getByRole("status")).toHaveText('No results for "zzzz"')
   await view.search.press("Escape")
   await expect(view.search).toHaveValue("")
 

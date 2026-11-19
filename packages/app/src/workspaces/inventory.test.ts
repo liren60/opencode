@@ -3,6 +3,7 @@ import { QueryClient } from "@tanstack/solid-query"
 import type { WorktreeDirectory } from "@opencode/client/promise"
 import { createWorktreeInventory, withWorktreeInventory, worktreeInventoryKey } from "./inventory"
 import { ServerScope } from "@/runtime/server/scope"
+import { ServerConnection } from "@/runtime/server/registry"
 import { normalizeProjectInfo, updateProjectInfo } from "@/runtime/server/global-sync/utils"
 
 function setup(list: (directory: string) => Promise<WorktreeDirectory[]>) {
@@ -89,7 +90,7 @@ describe("createWorktreeInventory", () => {
   })
 
   test("keys are partitioned by server and use opaque project IDs", () => {
-    const remote = "https://remote.example" as typeof ServerScope.local
+    const remote = ServerScope.fromServerKey(ServerConnection.Key.make("https://remote.example"))
     expect(worktreeInventoryKey(ServerScope.local, "project")).not.toEqual(
       worktreeInventoryKey(ServerScope.local, "project/"),
     )

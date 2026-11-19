@@ -4,10 +4,15 @@ const FOCUS_LOCK = "opencode:notification-focus"
 
 const MAX_CLAIMED = 500
 
+type FocusLockState = {
+  pending: boolean
+  release: (() => void) | undefined
+}
+
 export function createNotificationCoordinator() {
   const locks = typeof navigator === "undefined" ? undefined : navigator.locks
   const claimed = new Set<string>()
-  const focus = { pending: false, release: undefined as (() => void) | undefined }
+  const focus: FocusLockState = { pending: false, release: undefined }
 
   const updateFocus = () => {
     if (typeof document === "undefined" || !document.hasFocus()) {

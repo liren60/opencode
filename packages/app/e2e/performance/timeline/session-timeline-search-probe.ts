@@ -19,6 +19,12 @@ type TimelineSearchProbe = {
   stop: () => void
 }
 
+declare global {
+  interface Window {
+    __timelineSearchBenchmark?: TimelineSearchProbe
+  }
+}
+
 export async function installTimelineSearchProbe(page: Page, input: { targetPartID: string }) {
   await page.evaluate(({ targetPartID }) => {
     const search = document.querySelector<HTMLElement>('[data-component="timeline-search-bar"]')
@@ -89,7 +95,7 @@ export async function installTimelineSearchProbe(page: Page, input: { targetPart
 
     document.addEventListener("input", onInputCapture, { capture: true })
     document.addEventListener("input", onInput)
-    ;(window as Window & { __timelineSearchBenchmark?: TimelineSearchProbe }).__timelineSearchBenchmark = {
+    window.__timelineSearchBenchmark = {
       samples,
       initialScrollTopPx,
       get handlerDurationMs() {
@@ -112,8 +118,7 @@ export async function waitForStableTimelineSearch(
 ) {
   await page.waitForFunction(
     ({ counter, targetPartID }) => {
-      const samples = (window as Window & { __timelineSearchBenchmark?: TimelineSearchProbe }).__timelineSearchBenchmark
-        ?.samples
+      const samples = window.__timelineSearchBenchmark?.samples
 
       if (!samples) return false
 
@@ -142,7 +147,7 @@ export async function waitForStableTimelineSearch(
 
 export async function collectTimelineSearchMetrics(page: Page, input: { counter: string; targetPartID: string }) {
   const result = await page.evaluate(() => {
-    const probe = (window as Window & { __timelineSearchBenchmark?: TimelineSearchProbe }).__timelineSearchBenchmark
+    const probe = window.__timelineSearchBenchmark
 
     if (!probe) throw new Error("missing timeline search benchmark probe")
     probe.stop()

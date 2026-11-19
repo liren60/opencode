@@ -5,16 +5,23 @@ import { createStore } from "solid-js/store"
 import { ServerScope, SessionRouteKey, SessionStateKey } from "../src/runtime/server/scope"
 import { createTimelineCache } from "../src/session/timeline/cache"
 
+type CacheState = {
+  id: string
+  directory: string
+  visible: boolean
+  messages: Record<string, SessionMessageInfo[]>
+}
+
 function setup() {
   return createRoot((dispose) => {
-    const [state, setState] = createStore({
+    const [state, setState] = createStore<CacheState>({
       id: "ses_a",
       directory: "/repo",
       visible: true,
       messages: {
         ses_a: [{ id: "msg_a", type: "user", text: "First session", time: { created: 1 } }],
         ses_b: [{ id: "msg_b", type: "user", text: "Second session", time: { created: 2 } }],
-      } as Record<string, SessionMessageInfo[]>,
+      },
     })
 
     const views = new Map<
@@ -199,7 +206,10 @@ for (const order of ["session-first", "workspace-first"] as const) {
           input.setState("messages", id, [
             { id: `msg_live_${index}`, type: "user", text: "Live update", time: { created: index + 3 } },
           ])
-          expect((render.selected() as HTMLDivElement).dataset.messages).toBe(`msg_live_${index}`)
+          const selected = render.selected()
+
+          if (!(selected instanceof HTMLDivElement)) throw new Error("The selected cache view must be a div")
+          expect(selected.dataset.messages).toBe(`msg_live_${index}`)
           expect(input.views.get(id)!.active()).toBe(true)
           visited.push(id)
         },

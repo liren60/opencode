@@ -1,11 +1,19 @@
 import { afterEach, describe, expect, setSystemTime, test } from "bun:test"
-import type { SessionInfo } from "@opencode/client/promise"
+import type { ModelInfo, SessionInfo, SessionListInput, SessionSwitchModelInput } from "@opencode/client/promise"
+import { createData } from "@opencode/client/solid"
+import { createRoot } from "solid-js"
 import type { ServerCtx } from "@/runtime/server/runtime"
+import { createDesktopData } from "@/runtime/server/data"
+import { createServerTransport } from "@/runtime/server/client"
+import { ServerScope } from "@/runtime/server/scope"
 import { parseVoiceDelegation } from "@/session/timeline/voice-delegation"
 import { continuedHeader, header, headerLapse } from "./handoff"
 import { VoiceTools } from "./tools"
 
+const disposals: VoidFunction[] = []
+
 afterEach(() => {
+  disposals.splice(0).forEach((dispose) => dispose())
   setSystemTime()
 })
 
@@ -26,16 +34,29 @@ const models = [
   },
   { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", providerID: "google", enabled: true, variants: [] },
   { id: "gpt-4", name: "GPT-4", providerID: "openai", enabled: false, variants: [] },
-]
+].map((model): ModelInfo => ({
+  ...model, modelID: model.id, capabilities: { tools: true, input: ["text"], output: ["text"] },
+  time: { released: 1 }, cost: [], status: "active", limit: { context: 128_000, output: 8192 },
+}))
 
 const session = (id: string, title: string, extra: Partial<SessionInfo> = {}) =>
   ({
     id,
     title,
+    projectID: "project",
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     location: { directory: `/home/alex/code/${title.toLowerCase()}` },
     time: { created: 1, updated: 1 },
     ...extra,
-  }) as SessionInfo
+  }) satisfies SessionInfo
+
+type VoiceCalls = {
+  open: string[]
+  background: string[]
+  prompts: { sessionID: string; text: string }[]
+  switched: SessionSwitchModelInput[]
+}
 
 function setup(
   input: {
@@ -47,59 +68,89 @@ function setup(
   const sessions = [
     session("ses_here", "HERE", {
       model: { id: "claude-opus-4", providerID: "anthropic", variant: "high" },
-    } as Partial<SessionInfo>),
+    }),
     session("ses_desktop", "DESKTOP"),
     session("ses_old", "OLD", { time: { created: 1, updated: 1, archived: 2 } }),
     ...(input.sessions ?? []),
   ]
 
-  const calls = {
-    open: [] as string[],
-    background: [] as string[],
-    prompts: [] as { sessionID: string; text: string }[],
-    switched: [] as unknown[],
+  const calls: VoiceCalls = {
+    open: [],
+    background: [],
+    prompts: [],
+    switched: [],
   }
 
   const empty = { data: [], cursor: {} }
 
-  const ctx = {
+  const unexpected = () => { throw new Error("Unexpected voice fixture dependency") }
+
+  const transport = createServerTransport({
+    http: { url: "http://fixture.invalid" },
+    fetch: Object.assign(async () => unexpected(), { preconnect() {} }),
+  })
+
+  const api = transport.api
+  api.session.get = async (request) => {
+    const found = sessions.find((item) => item.id === request.sessionID)
+
+    if (!found) throw new Error("not found")
+
+    return found
+  }
+
+  // Newest first, one page, like the server.
+  api.session.list = async (request: SessionListInput = {}) => ({
+    data: sessions
+      .filter(
+        (item) =>
+          !item.time.archived &&
+          (request.parentID !== null || !item.parentID) &&
+          (!request.search || item.title?.toLowerCase().includes(request.search.toLowerCase())),
+      )
+      .toSorted((a, b) => b.time.updated - a.time.updated)
+      .slice(0, request.limit),
+    cursor: {},
+  })
+  api.session.switchModel = async (request) => { calls.switched.push(request) }
+
+  api.session.background = async (request) => { calls.background.push(request.sessionID) }
+
+  api.session.inbox.list = async () => []
+  api.message.list = async () => empty
+  api.model.list = async () => ({ location: { directory: "/home/alex/code" }, data: models })
+
+  const data = createRoot((dispose) => {
+    disposals.push(dispose)
+
+    return createDesktopData({
+      data: createData({ api: () => api, directory: "", event: { on: () => () => {}, listen: () => () => {} } }),
+      remove: async () => unexpected(),
+    })
+  })
+
+  data.session.prompt = async (request) => {
+    calls.prompts.push(request)
+
+    return {
+      id: request.id ?? "msg_voice_fixture", sessionID: request.sessionID, type: "user",
+      delivery: request.delivery ?? "steer", time: { created: 1 }, payload: { text: request.text },
+    }
+  }
+
+  const ctx: ServerCtx = {
     sdk: {
-      api: {
-        session: {
-          get: async (request: { sessionID: string }) => {
-            const found = sessions.find((item) => item.id === request.sessionID)
-
-            if (!found) throw new Error("not found")
-
-            return found
-          },
-          // Newest first, one page, like the server.
-          list: async (request: { search?: string; parentID?: null; limit?: number }) => ({
-            data: sessions
-              .filter(
-                (item) =>
-                  !item.time.archived &&
-                  (request.parentID !== null || !item.parentID) &&
-                  (!request.search || item.title?.toLowerCase().includes(request.search.toLowerCase())),
-              )
-              .toSorted((a, b) => b.time.updated - a.time.updated)
-              .slice(0, request.limit),
-            cursor: {},
-          }),
-          switchModel: async (request: unknown) => calls.switched.push(request),
-          background: async (request: { sessionID: string }) => calls.background.push(request.sessionID),
-          inbox: { list: async () => [] },
-        },
-        message: { list: async () => empty },
-        model: { list: async () => ({ data: models }) },
-      },
+      server: { type: "http", http: transport.http }, scope: ServerScope.local, url: transport.url,
+      http: transport.http, api, pty: transport.pty,
+      connection: { status: unexpected, attempt: unexpected, error: unexpected },
+      event: { on: unexpected, listen: unexpected, location: unexpected }, ensureDirSdkContext: unexpected,
     },
-    data: {
-      session: {
-        prompt: async (request: { sessionID: string; text: string }) => calls.prompts.push(request),
-      },
-    },
-  } as unknown as ServerCtx
+    data,
+    get sync() { return unexpected() },
+    get isLocal() { return unexpected() },
+    get projects() { return unexpected() },
+    get notification() { return unexpected() },
+  }
 
   const tools = new VoiceTools(ctx, {
     open: async (next, signal) => {

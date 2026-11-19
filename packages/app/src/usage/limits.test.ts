@@ -24,7 +24,9 @@ const info = (...budgets: UsageLimitsBudget[]): UsageLimitsInfo => ({
 })
 
 const opus = { providerID: "opencode", modelID: "claude-opus-5", name: "Claude Opus 5" }
+
 const sonnet = { providerID: "opencode", modelID: "claude-sonnet-5", name: "Claude Sonnet 5" }
+
 const served = (id: string, provider = "opencode") => ({ id, provider: { id: provider, integrationID: "opencode" } })
 
 describe("modelUsage", () => {
@@ -96,8 +98,14 @@ describe("usageView", () => {
     )
 
     expect(vendors.callout).toBeUndefined()
+    expect(vendors.budgets[0].label).toStrictEqual({ kind: "vendors", vendors: ["Anthropic"], each: false })
     expect(vendors.budgets[0].notes).toEqual([{ kind: "paused" }])
     expect(vendors.action).toEqual({ kind: "other-models", vendors: ["Anthropic"] })
+    expect(
+      usageView(
+        info(budget({ id: "priced", coverage: "models", vendors: ["Anthropic"], inputPriceAtLeast: 1 })),
+      ).budgets[0].label,
+    ).toStrictEqual({ kind: "vendors", vendors: ["Anthropic"], each: false, price: 1 })
 
     // A budget per model counts the model in use, and suggests the covered model with the most room.
     const each = usageView(
@@ -129,6 +137,21 @@ describe("usageView", () => {
       limit: 20,
       suggestion: { name: "Claude Sonnet 5", left: 15 },
     })
+    expect(
+      usageView(
+        info(
+          budget({
+            id: "exhausted",
+            coverage: "models",
+            per: "model",
+            limit: 20,
+            spent: 20,
+            models: [{ ...opus, spent: 20 }],
+          }),
+        ),
+        { model: opus },
+      ).action,
+    ).toStrictEqual({ kind: "other-models-each", vendors: [], limit: 20 })
   })
 
   test("blames the workspace's credits over its budgets", () => {

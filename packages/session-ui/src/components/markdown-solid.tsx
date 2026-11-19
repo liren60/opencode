@@ -79,30 +79,33 @@ function parseNode(node: Node, key: string, words: boolean, animate: boolean, in
 
       if (/^\s+$/.test(text)) return [{ key: `${key}:${index}`, type: "text", text }]
 
-      return [{ key: `${key}:${index}`, type: "word", text, ...(animate ? { animate: true as const } : {}) }]
+      const word: MarkdownNode = { key: `${key}:${index}`, type: "word", text }
+
+      if (animate) word.animate = true
+
+      return [word]
     })
   }
 
   if (!(node instanceof Element)) return []
 
-  return [
-    {
-      key,
-      type: "element",
-      tag: node.tagName.toLowerCase(),
-      attributes: Object.fromEntries(Array.from(node.attributes).map((attribute) => [attribute.name, attribute.value])),
-      children: Array.from(node.childNodes).flatMap((child, index) =>
-        parseNode(
-          child,
-          `${key}.${index}`,
-          words,
-          animate,
-          inlineCode || (node.tagName === "CODE" && node.parentElement?.tagName !== "PRE"),
-        ),
+  const element: MarkdownNode = {
+    key,
+    type: "element",
+    tag: node.tagName.toLowerCase(),
+    attributes: Object.fromEntries(Array.from(node.attributes).map((attribute) => [attribute.name, attribute.value])),
+    children: Array.from(node.childNodes).flatMap((child, index) =>
+      parseNode(
+        child,
+        `${key}.${index}`,
+        words,
+        animate,
+        inlineCode || (node.tagName === "CODE" && node.parentElement?.tagName !== "PRE"),
       ),
-      ...(words && animate && node.tagName === "CODE" && node.parentElement?.tagName !== "PRE"
-        ? { animate: true as const }
-        : {}),
-    },
-  ]
+    ),
+  }
+
+  if (words && animate && node.tagName === "CODE" && node.parentElement?.tagName !== "PRE") element.animate = true
+
+  return [element]
 }

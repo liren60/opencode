@@ -44,7 +44,7 @@ export function Spinner(props: ComponentProps<"svg"> & { "data-component"?: stri
               "--still": dot.still,
               animation: dot.steady
                 ? undefined
-                : `${keyframes}-${dot.shape} calc(${radarLoop}s * var(--spinner-time, 1)) linear calc(${-radarLoop * (1 - dot.at)}s * var(--spinner-time, 1)) infinite`,
+                : `${keyframes}-${dot.keyframe} calc(${radarLoop}s * var(--spinner-time, 1)) linear calc(${-radarLoop * (1 - dot.at)}s * var(--spinner-time, 1)) infinite`,
             }}
           />
         )}

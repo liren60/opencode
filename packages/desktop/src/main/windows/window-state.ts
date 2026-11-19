@@ -25,12 +25,13 @@ export type Displays = {
 // falls back to the default size on the primary display. A saved maximized or fullscreen state
 // without bounds is kept so manage() can restore it.
 export function resolveWindowState(saved: unknown, defaults: { width: number; height: number }, displays: Displays) {
-  const state = isState(saved) ? saved : undefined
+  const normalized = windowFlags(saved)
+  const state = isState(normalized) ? normalized : undefined
 
   if (!state) return { width: defaults.width, height: defaults.height } satisfies WindowState
 
   if (!hasBounds(state)) {
-    return state.isMaximized || state.isFullScreen
+    return state.isMaximized || state.isFullScreen || normalized !== saved
       ? ({ ...state, width: defaults.width, height: defaults.height } satisfies WindowState)
       : ({ width: defaults.width, height: defaults.height } satisfies WindowState)
   }
@@ -47,6 +48,22 @@ export function resolveWindowState(saved: unknown, defaults: { width: number; he
     y: 0,
     displayBounds: displays.primary(),
   } satisfies WindowState
+}
+
+function windowFlags(value: unknown) {
+  if (typeof value !== "object" || value === null) return
+  const maximized = "isMaximized" in value && value.isMaximized !== undefined && typeof value.isMaximized !== "boolean"
+  const fullScreen = "isFullScreen" in value && value.isFullScreen !== undefined && typeof value.isFullScreen !== "boolean"
+
+  if (!maximized && !fullScreen) return value
+  // Only malformed flags are removed; bounds and legacy/plugin fields keep their original values.
+  const state: { isMaximized?: unknown; isFullScreen?: unknown } = { ...value }
+
+  if (maximized) delete state.isMaximized
+
+  if (fullScreen) delete state.isFullScreen
+
+  return state
 }
 
 export function windowStateFile(id: string) {
@@ -111,8 +128,8 @@ export function manageWindowState(win: BrowserWindow, file: string, initial: Win
   win.on("closed", closed)
 }
 
-function isState(value: unknown): value is WindowState {
-  return typeof value === "object" && value !== null
+function isState(value: ReturnType<typeof windowFlags>): value is WindowState {
+  return value !== undefined
 }
 
 function hasBounds(state: WindowState): state is WindowState & Required<Pick<WindowState, "x" | "y">> {

@@ -68,11 +68,13 @@ const nativeLogger = Logger.make((options) => {
     const scope = typeof entry.annotations.scope === "string" ? entry.annotations.scope : "main"
     const annotations = Object.fromEntries(Object.entries(entry.annotations).filter(([key]) => key !== "scope"))
 
-    const context = {
-      ...(Object.keys(annotations).length === 0 ? {} : { annotations }),
-      ...(Object.keys(entry.spans).length === 0 ? {} : { spans: entry.spans }),
-      ...(entry.cause === undefined ? {} : { cause: entry.cause }),
-    }
+    const context: { -readonly [Key in "annotations" | "spans" | "cause"]?: (typeof entry)[Key] } = {}
+
+    if (Object.keys(annotations).length !== 0) context.annotations = annotations
+
+    if (Object.keys(entry.spans).length !== 0) context.spans = entry.spans
+
+    if (entry.cause !== undefined) context.cause = entry.cause
 
     const messages = Array.isArray(options.message) ? options.message : [options.message]
     log
@@ -160,7 +162,7 @@ function exportDebugLogsEffect(fs: FileSystem.FileSystem, path: Path.Path) {
         ...(yield* collect(fs, path, app.getPath("crashDumps"), "crashpad")),
       ]
 
-      const truncated = files.filter((file) => file.offset > 0).map((file) => file.name)
+      const truncated = files.flatMap((file) => (file.offset > 0 ? [file.name] : []))
       yield* writeZip(fs, output, [
         { name: "manifest.json", data: Buffer.from(JSON.stringify({ ...manifest(path), truncated }, null, 2)) },
         ...files,

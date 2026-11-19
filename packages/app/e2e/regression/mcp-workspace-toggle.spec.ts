@@ -47,12 +47,11 @@ async function open(
   await expectSessionTitle(page, title)
   await expect(page.getByRole("textbox", { name: "Prompt", exact: true })).toBeEditable()
 
-  const panel =
-    input.surface === "settings"
-      ? page.getByTestId("settings-screen")
-      : input.surface === "popover"
-        ? page.getByRole("group", { name: "MCP", exact: true })
-        : page.getByRole("dialog", { name: "MCPs", exact: true })
+  const panel = {
+    settings: page.getByTestId("settings-screen"),
+    popover: page.getByRole("group", { name: "MCP", exact: true }),
+    dialog: page.getByRole("dialog", { name: "MCPs", exact: true }),
+  }[input.surface]
 
   const show = async () => {
     if (input.surface === "dialog") return page.keyboard.press("Control+;")

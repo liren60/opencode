@@ -355,8 +355,8 @@ function frame(
   at: number,
   changing: VisualStabilityTrace["samples"][number]["regions"][string],
   following?: VisualStabilityTrace["samples"][number]["regions"][string],
-) {
-  return { at, regions: { changing, ...(following ? { following } : {}) } }
+): VisualStabilityTrace["samples"][number] {
+  return { at, regions: following ? { changing, following } : { changing } }
 }
 
 function region(input: Partial<VisualStabilityTrace["samples"][number]["regions"][string]> = {}) {

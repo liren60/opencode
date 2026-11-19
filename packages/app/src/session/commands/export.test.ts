@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import type { SessionInfo, SessionMessageInfo } from "@opencode/client/promise"
+import { OpenCode, type SessionInfo, type SessionMessageInfo, type MessageListInput } from "@opencode/client/promise"
 import type { ServerApi } from "@/runtime/server/api"
 import type { Platform } from "@/runtime/platform/platform"
 import { fetchSessionExport, saveSessionExport, sessionExportFilename } from "./export"
@@ -19,20 +19,25 @@ describe("fetchSessionExport", () => {
     const info = { id: "ses_1", title: "Test Session" } as SessionInfo
     const first = { id: "msg_1", type: "model-selected" } as unknown as SessionMessageInfo
     const second = { id: "msg_2", type: "user" } as SessionMessageInfo
-    const calls: unknown[] = []
+    const calls: MessageListInput[] = []
 
-    const api = {
-      session: { get: async () => info },
-      message: {
-        list: async (input: { cursor?: string }) => {
+    const client = OpenCode.make({
+      baseUrl: "http://fixture.invalid",
+      fetch: Object.assign(async () => { throw new Error("Unexpected export API method") }, { preconnect() {} }),
+    })
+
+    const api: Pick<ServerApi, "session" | "message"> = {
+      session: Object.assign(client.session, { get: async () => info }),
+      message: Object.assign(client.message, {
+        list: async (input: MessageListInput) => {
           calls.push(input)
 
           if (!input.cursor) return { data: [first], cursor: { next: "page-2" } }
 
           return { data: [second], cursor: {} }
         },
-      },
-    } as unknown as Pick<ServerApi, "session" | "message">
+      }),
+    }
 
     const result = await fetchSessionExport({ sessionID: "ses_1", api })
 

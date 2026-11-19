@@ -47,7 +47,7 @@ function collectRanges(
     const isActivePart = activePartID !== undefined && partID === activePartID
     let occurrenceInPart = 0
     const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
-    let node = walker.nextNode() as Text | null
+    let node = walker.nextNode()
 
     while (node) {
       const value = node.nodeValue ?? ""
@@ -67,7 +67,7 @@ function collectRanges(
         at = lowerValue.indexOf(lower, from)
       }
 
-      node = walker.nextNode() as Text | null
+      node = walker.nextNode()
     }
   }
 

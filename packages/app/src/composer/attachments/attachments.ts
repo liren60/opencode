@@ -15,9 +15,9 @@ type PromptTarget = {
 }
 
 export type ComposerAttachmentConfig = {
-  picker?: (
+  picker?: <Value>(
     options: { defaultPath?: string; multiple?: boolean; accept?: string[] },
-    onFile: (file: File) => Promise<unknown>,
+    onFile: (file: File) => Promise<Value>,
   ) => Promise<void>
   directory: () => string
   destination: () => AttachmentDestination

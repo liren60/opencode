@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test"
 import { spawn, type ChildProcess } from "node:child_process"
 import type { WslServerConfig } from "./contract"
-import type { WslRuntime } from "./runtime"
+import { createWslRuntime } from "./runtime"
 import { createWslServersController } from "./servers"
 
 test("teardown during a pending start resolves only after the started process exited", async () => {
@@ -10,7 +10,7 @@ test("teardown during a pending start resolves only after the started process ex
 
   const controller = createWslServersController({
     cli: { version: "1.0.0" },
-    runtime: {} as WslRuntime,
+    runtime: createWslRuntime((key) => key),
     t: (key) => key,
     log: () => undefined,
     installCli: async () => undefined,

@@ -89,7 +89,7 @@ describe("server event stream", () => {
 test("rotates HTTP and PTY clients together", async () => {
   const requests: Array<{ url: string; authorization: string | null }> = []
 
-  const fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+  const fetch = Object.assign(async (input: string | URL | Request, init?: RequestInit) => {
     const request = input instanceof Request ? input : new Request(input, init)
     requests.push({ url: request.url, authorization: request.headers.get("authorization") })
 
@@ -99,7 +99,7 @@ test("rotates HTTP and PTY clients together", async () => {
       urls: [request.url],
       paths: { tmp: "/tmp/opencode" },
     })
-  }) as typeof globalThis.fetch
+  }, { preconnect() {} })
 
   const transport = createServerTransport({
     http: { url: "http://127.0.0.1:4100", password: "first" },

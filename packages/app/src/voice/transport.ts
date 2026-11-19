@@ -8,6 +8,15 @@ export class VoiceFailure extends Error {
   }
 }
 
+type VoiceCommand =
+  | { type: "session.input_audio.mute" | "session.input_audio.unmute" | "response.create" }
+  | { type: "response.item.create"; item: { type: "function_call_output"; call_id: string; output: string } }
+  | { type: "session.commentary.append"; delegation_id: null; content: string }
+  | {
+      type: "session.update"
+      session: { delegation: { type: "responses"; responses: { instructions: string } } }
+    }
+
 export class VoiceTransport {
   readonly abort = new AbortController()
   private peer = new RTCPeerConnection({ iceServers: [], bundlePolicy: "max-bundle", rtcpMuxPolicy: "require" })
@@ -153,7 +162,7 @@ export class VoiceTransport {
     this.timer = setInterval(() => this.inputOptions.levels(this.level(this.input), this.level(this.output)), 100)
   }
 
-  send(event: object) {
+  send(event: VoiceCommand) {
     if (this.ended || this.channel.readyState !== "open") throw new VoiceFailure("dropped")
     this.channel.send(JSON.stringify({ event_id: crypto.randomUUID(), ...event }))
   }

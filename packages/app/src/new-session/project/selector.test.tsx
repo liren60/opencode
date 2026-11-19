@@ -38,6 +38,7 @@ describe("new session project selection", () => {
       worktree: "/remote",
       server: { key: "remote", name: "Remote", kind: "remote" as const },
     }
+
     const local = {
       id: "shared",
       worktree: "/local",
@@ -63,6 +64,7 @@ describe("new session project selection", () => {
   test("lists every server's projects in one list: used first, then the rest, each by recent activity", () => {
     const local = { key: "sidecar", name: "hailmary", kind: "current" as const }
     const apollo = { key: "http://apollo:4096", name: "apollo", kind: "remote" as const }
+
     const entry = (id: string, server: typeof local | typeof apollo, active: number, used: boolean) => ({
       id,
       worktree: `/${id}`,

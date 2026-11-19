@@ -1,3 +1,5 @@
+import type { Provider } from "@/runtime/server/types"
+
 type AgentModel = {
   providerID: string
   modelID: string
@@ -8,9 +10,7 @@ type Agent = {
   variant?: string
 }
 
-type Model = AgentModel & {
-  variants?: Record<string, unknown>
-}
+type Model = AgentModel & Pick<Provider["models"][string], "variants">
 
 type VariantInput = {
   variants: string[]

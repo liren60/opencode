@@ -6,6 +6,12 @@ type FirstNavigationProbe = {
   stop: () => void
 }
 
+declare global {
+  interface Window {
+    __firstNavigationProbe?: FirstNavigationProbe
+  }
+}
+
 export async function measureFirstNavigation(
   page: Page,
   input: {
@@ -60,7 +66,7 @@ export async function measureFirstNavigation(
         },
         { capture: true, once: true },
       )
-      ;(window as Window & { __firstNavigationProbe?: FirstNavigationProbe }).__firstNavigationProbe = {
+      window.__firstNavigationProbe = {
         samples,
         stop: () => {
           running = false
@@ -77,8 +83,7 @@ export async function measureFirstNavigation(
   )
   await input.navigate()
   await page.waitForFunction(() => {
-    const samples = (window as Window & { __firstNavigationProbe?: FirstNavigationProbe }).__firstNavigationProbe
-      ?.samples
+    const samples = window.__firstNavigationProbe?.samples
 
     if (!samples) return false
 
@@ -86,7 +91,7 @@ export async function measureFirstNavigation(
   })
 
   const samples = await page.evaluate(() => {
-    const probe = (window as Window & { __firstNavigationProbe?: FirstNavigationProbe }).__firstNavigationProbe!
+    const probe = window.__firstNavigationProbe!
     probe.stop()
 
     return probe.samples

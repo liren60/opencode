@@ -312,6 +312,7 @@ const RETRO: Definition[] = [
 
       const digit = (x0: number, n: number) => {
         const bits = SEGMENTS[n]
+
         const put = (segment: number, x: number, y: number) => {
           const lean = p.slant ? Math.floor((12 - y) / 4) : 0
           pixels.set(x0 + x + lean, 3 + y, (bits >> (6 - segment)) & 1 ? p.lit : off)
@@ -534,12 +535,14 @@ const RETRO: Definition[] = [
       ].forEach(([x, amount]) => {
         if (amount > 0.45) pixels.rect(x - 1, 6, 3, 3, tape)
         pixels.set(x, 7, 0xf6f3ec)
+
         const [dx, dy] = [
           [0, -1],
           [1, 0],
           [0, 1],
           [-1, 0],
         ][(spin + x) % 4]
+
         pixels.set(x + dx, 7 + dy, t > 0 ? 0xf6f3ec : amount > 0.45 ? tape : window)
       })
       pixels.rect(4, 10, 8, 2, shade(p.body, 0.82))

@@ -17,6 +17,7 @@ const args = parseArgs({
     session: { type: "string" },
     note: { type: "string" },
     generation: { type: "string" },
+    "skip-bun-cache": { type: "boolean" },
   },
 })
 
@@ -27,6 +28,9 @@ await mkdir(root, { recursive: true })
 const store = new RenicodeLauncherStore(path.join(root, "launcher.sqlite"))
 
 const command = args.positionals[0] ?? "launch"
+
+if (args.values["skip-bun-cache"] && command !== "prepare-generation")
+  throw new Error("--skip-bun-cache is only valid for generation preparation")
 
 async function stage(baseline: boolean) {
   if (!args.values.source) throw new Error("--source is required")
@@ -335,7 +339,7 @@ async function dispatch() {
       if (state.pending || !state.active || store.slot(state.active)?.directory !== candidate.baseline)
         throw new Error("Staged generation baseline changed; preparation is refused")
       await verifySlot(candidate.slot)
-      await prepareGeneration(candidate.sourceProfile, candidate.slot.profile)
+      await prepareGeneration(candidate.sourceProfile, candidate.slot.profile, { skipBunCache: args.values["skip-bun-cache"] })
 
       if ((await existingDesktop()).length) throw new Error("Desktop reopened during preparation; candidate remains unpublished")
       store.install(candidate.slot, args.values.session, "Prepared independent profile; rollback retains both generations")

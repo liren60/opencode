@@ -50,10 +50,12 @@ export const useComposerCommands = (input: { model?: ModelSelection } = {}) => {
   const viewUsage = async () => {
     const { DialogUsage } = await import("@/usage/dialog")
     const current = model.current()
+
     // Console refuses with 402 only when the workspace can't pay, which the dialog explains.
     const last = params.id
       ? data.session.message.list(params.id)?.findLast((message) => message.type === "assistant")
       : undefined
+
     void dialog.show(() => (
       <DialogUsage
         location={workspace().ref}

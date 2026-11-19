@@ -48,6 +48,7 @@ export function RecentlyClosedTabsMenu(props: {
   })
 
   const servers = createMemo(() => global.servers.list())
+
   const sessions = useQueries(() => ({
     queries: servers().map((conn) => {
       const ctx = global.serverCtx(ServerConnection.key(conn))

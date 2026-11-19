@@ -25,6 +25,14 @@ const native = createRequire(new URL("../../../../core/package.json", import.met
   }
 }
 
+type TerminalInteraction = {
+  returnMs?: number
+  homeReadyMs?: number
+  serializeMs?: number
+  serializedBytes?: number
+  teardownCpuMs?: number
+}
+
 const sessionID = "ses_terminal_benchmark"
 
 const ptyID = "pty_terminal_benchmark"
@@ -247,7 +255,7 @@ for (const scenario of ["visible-output", "hidden-output", "full-scrollback-tear
           before.metrics.find((x) => x.name === "TaskDuration")!.value) *
         1000
 
-      let interaction: Record<string, unknown> = {}
+      let interaction: TerminalInteraction = {}
 
       if (scenario === "hidden-output") {
         const start = await page.evaluate(() => performance.now())

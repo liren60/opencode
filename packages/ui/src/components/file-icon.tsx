@@ -69,6 +69,7 @@ function toIconName(path: string) {
 
 function insertSymbol(name: IconName, text: string) {
   const id = symbolID(name)
+
   // Icons share the document now, so scope their internal ids (gradients, clip paths) and drop their unstyled
   // classes, which app CSS such as Tailwind utilities would otherwise match.
   const scoped = text
@@ -76,6 +77,7 @@ function insertSymbol(name: IconName, text: string) {
     .replace(/\sid="([^"]*)"/g, ` id="${id}-$1"`)
     .replace(/url\(#([^)]*)\)/g, `url(#${id}-$1)`)
     .replace(/href="#([^"]*)"/g, `href="#${id}-$1"`)
+
   const svg = new DOMParser().parseFromString(scoped, "image/svg+xml").documentElement
   const symbol = document.createElementNS("http://www.w3.org/2000/svg", "symbol")
   Array.from(svg.attributes)
@@ -613,9 +615,15 @@ const ICON_MAPS: IconMaps = {
 const toOpenVariant = (icon: IconName): IconName => {
   if (!icon.startsWith("Folder")) return icon
 
-  if (icon.endsWith("_light")) return icon.replace("_light", "Open_light") as IconName
+  if (icon.endsWith("_light")) {
+    // SAFETY: folderNames passes closed names here; generated light folders have matching Open_light entries.
+    return icon.replace("_light", "Open_light") as IconName
+  }
 
-  if (!icon.endsWith("Open")) return (icon + "Open") as IconName
+  if (!icon.endsWith("Open")) {
+    // SAFETY: each closed Folder name in ICON_MAPS.folderNames has its Open counterpart in the generated catalog.
+    return (icon + "Open") as IconName
+  }
 
   return icon
 }

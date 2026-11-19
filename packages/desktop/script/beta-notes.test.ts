@@ -1,8 +1,6 @@
 import { afterAll, expect, test } from "bun:test"
 import { $ } from "bun"
-import { mkdtemp, rm } from "node:fs/promises"
-import { tmpdir } from "node:os"
-import path from "node:path"
+import { tmpdir } from "../../core/test/fixture/tmpdir"
 import { BetaNotes } from "./beta-notes"
 
 test.each([
@@ -35,13 +33,14 @@ test.each([
   expect(BetaNotes.parseSubject(subject)).toEqual(expected)
 })
 
-const repos: string[] = []
+const repos: Awaited<ReturnType<typeof tmpdir>>[] = []
 
-afterAll(() => Promise.all(repos.map((dir) => rm(dir, { recursive: true, force: true }))))
+afterAll(() => Promise.all(repos.map((dir) => dir[Symbol.asyncDispose]())))
 
 async function repo(subjects: string[]) {
-  const dir = await mkdtemp(path.join(tmpdir(), "beta-notes-"))
-  repos.push(dir)
+  const fixture = await tmpdir("beta-notes-")
+  repos.push(fixture)
+  const dir = fixture.path
 
   await $`git init -q -b beta && git config user.email a@b.c && git config user.name Ada`.cwd(dir).quiet()
 

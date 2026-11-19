@@ -10,7 +10,7 @@ const randomDescriptor = Object.getOwnPropertyDescriptor(Math, "random")
 const setCrypto = (value: Partial<Crypto>) => {
   Object.defineProperty(globalThis, "crypto", {
     configurable: true,
-    value: value as Crypto,
+    value,
   })
 }
 
@@ -38,7 +38,8 @@ afterEach(() => {
   }
 
   if (!secureDescriptor) {
-    delete (globalThis as { isSecureContext?: boolean }).isSecureContext
+    const host: { isSecureContext?: boolean } = globalThis
+    delete host.isSecureContext
   }
 
   if (randomDescriptor) {

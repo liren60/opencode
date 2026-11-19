@@ -23,6 +23,14 @@ const pct = (value: number | undefined, fallback: number) => {
   return `${v}%`
 }
 
+type RevealState = {
+  cur: string | undefined
+  old: string | undefined
+  width: string
+  ready: boolean
+  swapping: boolean
+}
+
 export function TextReveal(props: {
   text?: string
   class?: string
@@ -36,9 +44,9 @@ export function TextReveal(props: {
   growOnly?: boolean
   truncate?: boolean
 }) {
-  const [state, setState] = createStore({
+  const [state, setState] = createStore<RevealState>({
     cur: props.text,
-    old: undefined as string | undefined,
+    old: undefined,
     width: "auto",
     ready: false,
     swapping: false,
@@ -75,7 +83,7 @@ export function TextReveal(props: {
       (next, prev) => {
         if (next === prev) return
 
-        if (typeof next === "string" && typeof prev === "string" && next.startsWith(prev)) {
+        if (next !== undefined && prev !== undefined && next.startsWith(prev)) {
           setState("cur", next)
           widen(win())
 

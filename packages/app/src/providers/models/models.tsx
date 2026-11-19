@@ -5,6 +5,8 @@ import { useGlobal } from "@/runtime/server/runtime"
 
 type ModelKey = { providerID: string; modelID: string }
 
+type ModelsProps = { directory?: string }
+
 type Visibility = "show" | "hide"
 
 const RECENT_LIMIT = 5
@@ -188,10 +190,13 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
   }
 }
 
-export const { use: useModels, provider: ModelsProvider } = createSimpleContext({
+export const { use: useModels, provider: ModelsProvider } = createSimpleContext<
+  ReturnType<typeof createModelsController>,
+  ModelsProps
+>({
   name: "Models",
   gate: false,
-  init: (props: { directory?: string } = {}) => {
+  init: (props: ModelsProps = {}) => {
     return createModelsController(() => props.directory)
   },
 })

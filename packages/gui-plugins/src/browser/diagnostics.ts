@@ -44,14 +44,17 @@ export function createDiagnostics(cdp: Cdp) {
     timestampMs: number,
     source?: Browser.ConsoleEntry["source"],
   ) => {
-    messages.push({
+    const entry = {
       id: `${scope}:${++sequence}`,
       timestampMs,
       level,
       text: text.slice(0, 2_000),
       textTruncated: text.length > 2_000,
-      ...(source ? { source } : {}),
-    })
+    }
+
+    if (source) messages.push({ ...entry, source })
+
+    if (!source) messages.push(entry)
 
     if (messages.length > 500) {
       messages.shift()

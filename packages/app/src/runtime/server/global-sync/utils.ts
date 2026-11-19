@@ -11,7 +11,7 @@ const providerCatalogs = new WeakMap<
 >()
 
 export function normalizeAgentList(input: AgentListOutput["data"] | Agent[]): Agent[] {
-  if (input.every((agent) => !("request" in agent))) return input as Agent[]
+  if (input.every((agent): agent is Agent => !("request" in agent))) return input
 
   return (input as AgentListOutput["data"]).map((agent) => ({
     name: agent.id,

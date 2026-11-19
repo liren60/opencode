@@ -189,16 +189,14 @@ export const LineCommentEditor = (props: LineCommentEditorProps) => {
     "mention",
   ])
 
-  const refs = {
-    textarea: undefined as HTMLTextAreaElement | undefined,
-  }
+  let textareaRef: HTMLTextAreaElement | undefined
 
   const [open, setOpen] = createSignal(false)
 
   function selectMention(item: { path: string } | undefined) {
     if (!item) return
 
-    const textarea = refs.textarea
+    const textarea = textareaRef
     const query = currentMention()
 
     if (!textarea || !query) return
@@ -230,7 +228,7 @@ export const LineCommentEditor = (props: LineCommentEditorProps) => {
     onSelect: selectMention,
   })
 
-  const focus = () => refs.textarea?.focus()
+  const focus = () => textareaRef?.focus()
 
   const hold: JSX.EventHandlerUnion<HTMLButtonElement, MouseEvent> = (e) => {
     e.preventDefault()
@@ -250,7 +248,7 @@ export const LineCommentEditor = (props: LineCommentEditorProps) => {
   }
 
   const currentMention = () => {
-    const textarea = refs.textarea
+    const textarea = textareaRef
 
     if (!textarea) return
 
@@ -308,7 +306,7 @@ export const LineCommentEditor = (props: LineCommentEditorProps) => {
       <div data-slot="line-comment-editor">
         <textarea
           ref={(el) => {
-            refs.textarea = el
+            textareaRef = el
           }}
           data-slot="line-comment-textarea"
           dir="auto"
@@ -317,14 +315,14 @@ export const LineCommentEditor = (props: LineCommentEditorProps) => {
           value={split.value}
           style={{ "unicode-bidi": "plaintext", "text-align": "start" }}
           on:input={(e) => {
-            const value = (e.currentTarget as HTMLTextAreaElement).value
+            const value = e.currentTarget.value
             split.onInput(value)
             syncMention()
           }}
           on:click={() => syncMention()}
           on:select={() => syncMention()}
           on:keydown={(e) => {
-            const event = e as KeyboardEvent
+            const event = e
 
             if (event.isComposing || event.keyCode === 229) return
             event.stopPropagation()

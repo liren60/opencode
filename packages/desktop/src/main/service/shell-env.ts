@@ -41,7 +41,7 @@ const probe = Effect.fn("ShellEnv.probe")(function* (shell: string, mode: "-il" 
     windowsHide: true,
   })
 
-  const err = out.error as NodeJS.ErrnoException | undefined
+  const err: NodeJS.ErrnoException | undefined = out.error
 
   if (err) {
     if (err.code === "ETIMEDOUT") return { type: "Timeout" } satisfies Probe

@@ -3,12 +3,12 @@ import { sessionNotFoundError } from "@/runtime/server/errors"
 
 type SessionStore<T> = {
   get: (id: string) => T | undefined
-  sync: (id: string, options?: { children?: boolean }) => Promise<unknown>
+  sync: (id: string, options?: { children?: boolean }) => Promise<void>
   message: {
-    sync: (id: string) => Promise<unknown>
+    sync: (id: string) => Promise<void>
   }
   pending: {
-    sync: (id: string) => Promise<unknown>
+    sync: (id: string) => Promise<void>
   }
 }
 

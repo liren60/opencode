@@ -8,6 +8,10 @@ test("handles clipboard files, and native images only when the clipboard has no 
   expect(shouldHandlePasteAsAttachment(clipboard([], [{ kind: "file" }]), false)).toBe(true)
 })
 
-function clipboard(types: string[] = [], items: Array<{ kind: string }> = []) {
-  return { types, items } as unknown as DataTransfer
+function clipboard(types: string[] = [], items: Array<{ kind: "file" }> = []) {
+  const transfer = new DataTransfer()
+  items.forEach(() => transfer.items.add(new File([], "attachment.png", { type: "image/png" })))
+  Object.defineProperty(transfer, "types", { value: types })
+
+  return transfer
 }

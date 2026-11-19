@@ -9,11 +9,11 @@ function setup(
 
   const api = createApiForServer({
     server: { url: "https://server.example:4096", password: "secret" },
-    fetch: (async (input: string | URL | Request, init?: RequestInit) => {
+    fetch: Object.assign(async (input: string | URL | Request, init?: RequestInit) => {
       requests.push({ url: new URL(input instanceof Request ? input.url : input), init })
 
       return respond(init)
-    }) as typeof fetch,
+    }, { preconnect() {} }),
   })
 
   return { api, requests }

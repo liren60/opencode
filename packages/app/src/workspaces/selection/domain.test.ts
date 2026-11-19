@@ -1,4 +1,7 @@
 import { expect, test } from "bun:test"
+import type { FileFindInput, FileFindOutput, FileListInput, FileListOutput } from "@opencode/client/promise"
+import { createServerTransport } from "@/runtime/server/client"
+import { ServerScope } from "@/runtime/server/scope"
 import {
   absoluteTreePath,
   activeTreeNavigation,
@@ -21,9 +24,28 @@ import {
 
 type Sdk = Parameters<typeof listPickerDirectory>[0]
 
+// Unsupported searches deliberately return only data; the picker must keep its existing base location.
+type PickerFixtureResult = { location?: FileListInput["location"]; data: FileFindOutput["data"] }
+
 // The picker only reads `api.file.find` and `api.file.list`.
-const sdk = (file: { find?: (input: never) => Promise<unknown>; list?: (input: never) => Promise<unknown> }) =>
-  ({ api: { file } }) as unknown as Sdk
+const sdk = (file: { find?: (input: FileFindInput) => Promise<PickerFixtureResult>; list?: (input: FileListInput) => Promise<PickerFixtureResult> }): Sdk => {
+  const unexpected = () => { throw new Error("Unexpected picker fixture dependency") }
+
+  const transport = createServerTransport({
+    http: { url: "http://fixture.invalid" },
+    fetch: Object.assign(async () => unexpected(), { preconnect() {} }),
+  })
+
+  const api = transport.api
+  api.file.find = async (input) => await (file.find ? file.find(input) : unexpected()) as FileFindOutput
+  api.file.list = async (input) => await (file.list ? file.list(input!) : unexpected()) as FileListOutput
+
+  return {
+    server: { type: "http", http: transport.http }, scope: ServerScope.local, url: transport.url, http: transport.http,
+    api, pty: transport.pty, connection: { status: unexpected, attempt: unexpected, error: unexpected },
+    event: { on: unexpected, listen: unexpected, location: unexpected }, ensureDirSdkContext: unexpected,
+  }
+}
 
 test("maps server directory entries into Pierre paths", () => {
   expect(
@@ -302,7 +324,7 @@ test("maps server-native drive and share paths without rebasing the location", a
   const calls: unknown[] = []
 
   const api = sdk({
-    list: async (input: { location: { directory: string }; path: string }) => {
+    list: async (input: FileListInput) => {
       calls.push(input)
 
       return { location: input.location, data: [{ path: "../sibling/", type: "directory" }] }
@@ -330,8 +352,8 @@ const projects = Array.from({ length: 60 }, (_, index) => ({ path: `project-${in
 const fallbacks: {
   name: string
   query: string
-  find: () => Promise<unknown>
-  list: () => Promise<unknown>
+  find: () => Promise<PickerFixtureResult>
+  list: () => Promise<PickerFixtureResult>
   expected: string[]
   listed: string[]
 }[] = [

@@ -98,11 +98,11 @@ export function createProfiling(
       const complete = Promise.withResolvers<{ stream?: string; dataLossOccurred: boolean }>()
       const off = cdp.on("Tracing.tracingComplete", (event) => complete.resolve(event))
 
-      const owner = {
+      const owner: Recording = {
         owner: contents,
         pid: contents.getOSProcessId(),
         started: performance.now(),
-        timer: undefined as ReturnType<typeof setTimeout> | undefined,
+        timer: undefined,
         finish: () => {
           if (trace) return trace
           trace = (async () => {

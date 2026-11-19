@@ -17,8 +17,129 @@ import { ServiceConfig } from "../src/services/service-config"
 import { ServiceRegistration } from "../src/services/service-registration"
 import { isolatedEnv, transpilerCache } from "./fixture/environment"
 import { testEffect } from "../../core/test/lib/effect"
+import { tmpdir } from "../../core/test/fixture/tmpdir"
 
 const it = testEffect(NodeFileSystem.layer)
+
+test.skipIf(process.platform !== "win32")("detached Windows worker clears inheritance without closing its handles", async () => {
+  const child = Bun.spawn([process.execPath, path.join(import.meta.dir, "fixture/detach-windows.ts")], {
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  const [exit, stdout, stderr] = await Promise.all([
+    child.exited,
+    new Response(child.stdout).text(),
+    new Response(child.stderr).text(),
+  ])
+  expect(stderr).toBe("")
+  expect(exit).toBe(0)
+  expect(JSON.parse(stdout)).toEqual({ beforeValid: 1, before: 1, afterValid: 1, after: 0, wait: 258 })
+}) // The Win32 handle-inheritance boundary is not available on other platforms.
+
+test("detached serve exits its launcher while preserving the authenticated service and explicit network options", async () => {
+  await using home = await tmpdir("opencode-serve-detach-")
+  const root = home.path
+  const file = path.join(root, "state", "opencode", ServiceConfig.filename())
+  const config = path.join(root, "config", ServiceConfig.filename())
+  const env = isolatedEnv(root, { OPENCODE_DISABLE_PROJECT_CONFIG: "1", OPENCODE_DISABLE_CLAUDE_CODE: "1" })
+  const cli = async (...args: string[]) => {
+    const child = Bun.spawn([process.execPath, path.join(import.meta.dir, "../src/index.ts"), "serve", ...args], {
+      env,
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const [exit, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+    return { pid: child.pid, exit, stdout, stderr }
+  }
+  try {
+    for (const invalid of [
+      { args: ["--detach"], error: "--detach requires --service" },
+      { args: ["--service", "--detach", "--stdio"], error: "--service and --stdio cannot be combined" },
+    ]) {
+      const result = await cli(...invalid.args)
+      expect(result.stderr).toContain(invalid.error)
+      expect(result.exit).not.toBe(0)
+      expect(await Bun.file(file).exists()).toBe(false)
+    }
+    const listener = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() })
+    const port = listener.port
+    await listener.stop(true)
+    expect(port).toBeDefined()
+    await Bun.write(config, JSON.stringify({ password: "synthetic-detach-secret", hostname: "127.0.0.2", port: 1 }))
+    const result = await cli(
+      "--service",
+      "--detach",
+      "--hostname",
+      "127.0.0.1",
+      "--port",
+      String(port),
+      "--cors",
+      "https://detach.example",
+    )
+    expect(result.stderr).not.toContain("Failed to start")
+    expect(result.exit).toBe(0)
+    const info = await Bun.file(file).json().then(Schema.decodeUnknownPromise(Service.Info))
+    expect(info.pid).not.toBe(result.pid)
+    expect(info.url).toBe(`http://127.0.0.1:${port}`)
+    expect(info.password).toBe("synthetic-detach-secret")
+    expect(info.version).toBe(OPENCODE_VERSION)
+    const headers = Service.headers({
+      url: info.url,
+      auth: { type: "basic", username: "opencode", password: "synthetic-detach-secret" },
+    })
+    const response = await fetch(new URL("/api/info", info.url), { headers })
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({ pid: info.pid })
+    expect((await fetch(new URL("/api/session", info.url))).status).toBe(401)
+    const cors = await fetch(new URL("/api/info", info.url), { headers: { ...headers, Origin: "https://detach.example" } })
+    expect(cors.headers.get("access-control-allow-origin")).toBe("https://detach.example")
+    expect(await Bun.file(config).json()).toMatchObject({ hostname: "127.0.0.2", port: 1 })
+  } finally {
+    await Effect.runPromise(Service.stop({ file }).pipe(Effect.provide(NodeFileSystem.layer)))
+  }
+}, 60_000) // Real CLI validation boots plus a real detached server with authentication and CORS.
+
+test("detached serve reports the final service's boot failure on stderr", async () => {
+  await using home = await tmpdir("opencode-serve-detach-failure-")
+  const file = path.join(home.path, "state", "opencode", ServiceConfig.filename())
+  const database = path.join(home.path, "bad-database")
+  await fs.mkdir(database)
+  const listener = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () => new Response() })
+  const port = listener.port
+  await listener.stop(true)
+  const child = Bun.spawn([
+    process.execPath,
+    path.join(import.meta.dir, "../src/index.ts"),
+    "serve", "--service", "--detach", "--hostname", "127.0.0.1", "--port", String(port),
+  ], {
+    env: isolatedEnv(home.path, {
+      OPENCODE_DB: database,
+      OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+      OPENCODE_DISABLE_CLAUDE_CODE: "1",
+    }),
+    cwd: path.join(import.meta.dir, ".."),
+    stdout: "pipe",
+    stderr: "pipe",
+  })
+  try {
+    const [exit, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ])
+    expect(stderr).toContain("Background service failed to start")
+    expect(exit).not.toBe(0)
+    expect(stdout).not.toContain("http://")
+  } finally {
+    child.kill()
+    await Effect.runPromise(Service.stop({ file }).pipe(Effect.provide(NodeFileSystem.layer)))
+  }
+}, 60_000) // Boots a real server far enough to register and report its database failure.
 
 test("managed service ports are stable per installation channel", () => {
   expect(ServiceConfig.defaultPort("latest", "linux")).toBe(0xc0de)

@@ -35,6 +35,18 @@ describe("window state", () => {
     expect(resolveWindowState({ isMaximized: true }, defaults, displays)).toEqual({ ...defaults, isMaximized: true })
   })
 
+  test.each([1, "false", { saved: true }])("ignores malformed flags individually while preserving other saved fields (%j)", (invalid) => {
+    const bounds = { x: 100, y: 100, width: 1000, height: 700, displayBounds: primary, extra: { preserved: true } }
+    expect(resolveWindowState({ ...bounds, isMaximized: invalid, isFullScreen: true }, defaults, displays)).toEqual({
+      ...bounds, isFullScreen: true,
+    })
+    expect(resolveWindowState({ ...bounds, isMaximized: false, isFullScreen: invalid }, defaults, displays)).toEqual({
+      ...bounds, isMaximized: false,
+    })
+    expect(resolveWindowState({ isMaximized: invalid, isFullScreen: false }, defaults, displays)).toEqual({ ...defaults, isFullScreen: false })
+    expect(resolveWindowState({ isMaximized: false, isFullScreen: invalid }, defaults, displays)).toEqual({ ...defaults, isMaximized: false })
+  })
+
   test("reads the file electron-window-state wrote and ignores an unreadable one", () => {
     const dir = mkdtempSync(path.join(tmpdir(), "opencode-window-state-"))
     const file = path.join(dir, "window-state-a.json")

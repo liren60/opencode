@@ -4,9 +4,30 @@
 // path fill per run of same-coloured quads, as drawing straight to the canvas would.
 
 export type Rgba = readonly [number, number, number, number]
+
 export type Quads = ReturnType<typeof createQuads>
 
 type Region = { x: number; y: number; w: number; h: number }
+
+type QuadData = { list: Float32Array; tints: Rgba[]; count: number; shadows: number }
+
+type Gpu = {
+  ready: boolean
+  capacity: number
+  program: WebGLProgram | null
+  vao: WebGLVertexArrayObject | null
+  instances: WebGLBuffer | null
+  view: WebGLUniformLocation | null
+  size: WebGLUniformLocation | null
+  scale: WebGLUniformLocation | null
+  attributes: { at: number; size: number; offset: number }[]
+  init(): void
+  offset(first: number): void
+}
+
+type CanvasSurface = {
+  current?: { gl: WebGL2RenderingContext; gpu: Gpu } | { ctx: CanvasRenderingContext2D }
+}
 
 const FLOATS = 10
 
@@ -50,11 +71,11 @@ void main() {
 
 export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
   // Each quad's colour is also kept as given, for the 2D fallback.
-  const data = { list: new Float32Array(FLOATS * 1024), tints: [] as Rgba[], count: 0, shadows: 0 }
+  const data: QuadData = { list: new Float32Array(FLOATS * 1024), tints: [], count: 0, shadows: 0 }
+
   // The context is created on first draw, so a layer that never shows pins never holds one.
-  const surface: {
-    current?: { gl: WebGL2RenderingContext; gpu: ReturnType<typeof setup> } | { ctx: CanvasRenderingContext2D }
-  } = {}
+  const surface: CanvasSurface = {}
+
   const styles = new WeakMap<Rgba, string>()
 
   const push = (x: number, y: number, ux: number, uy: number, vx: number, vy: number, c: Rgba) => {
@@ -63,6 +84,7 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
       grown.set(data.list)
       data.list = grown
     }
+
     const list = data.list
     data.tints[data.count] = c
     const i = data.count++ * FLOATS
@@ -98,11 +120,13 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
     },
     draw(region: Region, scale: number) {
       surface.current ??= open()
+
       if ("gl" in surface.current) return drawGL(surface.current.gl, surface.current.gpu, region, scale)
       drawCanvas(surface.current.ctx, region, scale)
     },
     dispose() {
       const current = surface.current
+
       if (!current || !("gl" in current)) return
       // Losing the context in the frame the canvas leaves the page lets the compositor redraw the last
       // frame from a released buffer, which some GPUs show as a one-frame white flash. Drop it once the
@@ -119,16 +143,20 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
       depth: false,
       failIfMajorPerformanceCaveat: true,
     })
+
     if (gl) return { gl, gpu: setup(gl) }
+
     return { ctx: canvas.getContext("2d")! }
   }
 
-  function drawGL(gl: WebGL2RenderingContext, gpu: ReturnType<typeof setup>, region: Region, scale: number) {
+  function drawGL(gl: WebGL2RenderingContext, gpu: Gpu, region: Region, scale: number) {
     if (gl.isContextLost()) return
+
     if (!gpu.ready) gpu.init()
     gl.viewport(0, 0, canvas.width, canvas.height)
     gl.clearColor(0, 0, 0, 0)
     gl.clear(gl.COLOR_BUFFER_BIT)
+
     if (!data.count) return
     gl.useProgram(gpu.program)
     gl.bindVertexArray(gpu.vao)
@@ -136,19 +164,24 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
     gl.uniform2f(gpu.size, canvas.width, canvas.height)
     gl.uniform1f(gpu.scale, scale)
     gl.bindBuffer(gl.ARRAY_BUFFER, gpu.instances)
+
     // The GPU buffer is reused across frames and only reallocated when the quad list outgrows it.
     if (gpu.capacity < data.list.length) {
       gpu.capacity = data.list.length
       gl.bufferData(gl.ARRAY_BUFFER, gpu.capacity * 4, gl.DYNAMIC_DRAW)
     }
+
     gl.bufferSubData(gl.ARRAY_BUFFER, 0, data.list, 0, data.count * FLOATS)
     gl.enable(gl.BLEND)
     gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA)
+
     if (data.shadows) {
       gl.blendEquation(gl.MAX)
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, data.shadows)
     }
+
     gl.blendEquation(gl.FUNC_ADD)
+
     if (data.count > data.shadows) {
       gpu.offset(data.shadows)
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, data.count - data.shadows)
@@ -163,41 +196,48 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
     ctx.clearRect(0, 0, canvas.width, canvas.height)
     ctx.setTransform(scale, 0, 0, scale, -region.x * scale, -region.y * scale)
     const list = data.list
+
     for (let n = 0; n < data.count; ) {
       const c = data.tints[n]
       ctx.fillStyle = styles.get(c) ?? styles.set(c, `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${c[3]})`).get(c)!
       ctx.beginPath()
+
       for (; n < data.count && data.tints[n] === c; n++) {
         const i = n * FLOATS
         const x = list[i]
         const y = list[i + 1]
+
         if (list[i + 3] === 0 && list[i + 4] === 0) {
           ctx.rect(x, y, list[i + 2], list[i + 5])
           continue
         }
+
         ctx.moveTo(x, y)
         ctx.lineTo(x + list[i + 2], y + list[i + 3])
         ctx.lineTo(x + list[i + 2] + list[i + 4], y + list[i + 3] + list[i + 5])
         ctx.lineTo(x + list[i + 4], y + list[i + 5])
         ctx.closePath()
       }
+
       ctx.fill()
     }
   }
+
   // GPU objects are rebuilt after the context is lost and restored.
   function setup(gl: WebGL2RenderingContext) {
-    const gpu = {
+    const gpu: Gpu = {
       ready: false,
       capacity: 0,
-      program: null as WebGLProgram | null,
-      vao: null as WebGLVertexArrayObject | null,
-      instances: null as WebGLBuffer | null,
-      view: null as WebGLUniformLocation | null,
-      size: null as WebGLUniformLocation | null,
-      scale: null as WebGLUniformLocation | null,
-      attributes: [] as { at: number; size: number; offset: number }[],
+      program: null,
+      vao: null,
+      instances: null,
+      view: null,
+      size: null,
+      scale: null,
+      attributes: [],
       init() {
         const program = gl.createProgram()!
+
         for (const [type, source] of [
           [gl.VERTEX_SHADER, VERTEX],
           [gl.FRAGMENT_SHADER, FRAGMENT],
@@ -207,6 +247,7 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
           gl.compileShader(shader)
           gl.attachShader(program, shader)
         }
+
         gl.linkProgram(program)
         gpu.program = program
         gpu.view = gl.getUniformLocation(program, "view")
@@ -229,10 +270,12 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
           { at: gl.getAttribLocation(program, "v"), size: 2, offset: 4 },
           { at: gl.getAttribLocation(program, "color"), size: 4, offset: 6 },
         ]
+
         for (const a of gpu.attributes) {
           gl.enableVertexAttribArray(a.at)
           gl.vertexAttribDivisor(a.at, 1)
         }
+
         gpu.offset(0)
         gpu.ready = true
       },
@@ -242,11 +285,13 @@ export function createQuads(canvas: HTMLCanvasElement, restored: () => void) {
           gl.vertexAttribPointer(a.at, a.size, gl.FLOAT, false, FLOATS * 4, (first * FLOATS + a.offset) * 4)
       },
     }
+
     canvas.addEventListener("webglcontextlost", (event) => event.preventDefault())
     canvas.addEventListener("webglcontextrestored", () => {
       gpu.ready = false
       restored()
     })
+
     return gpu
   }
 }

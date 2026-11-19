@@ -33,6 +33,7 @@ export function DialogUsage(props: {
   const data = useData()
   const language = useLanguage()
   const [state, setState] = createStore({ loading: true, failed: false })
+
   const load = () => {
     setState({ loading: true, failed: false })
     data.location.usage.invalidate(props.location)
@@ -41,6 +42,7 @@ export function DialogUsage(props: {
       .then(() => setState({ loading: false, failed: false }))
       .catch(() => setState({ loading: false, failed: true }))
   }
+
   onMount(load)
   const info = () => data.location.usage.limits(props.location)
 
@@ -102,35 +104,47 @@ export function UsageDialogContent(props: {
   const format = useUsageFormat()
   const view = () => usageView(props.info, { model: props.model, credits: props.credits })
   const workspace = () => view().workspace ?? language.t("usage.workspace.fallback")
+
   const vendors = (list: readonly string[]) =>
     new Intl.ListFormat(language.intl(), { style: "long", type: "conjunction" }).format(list)
+
   const duration = (until: number) => {
     const minutes = Math.max(1, Math.floor((until - Date.now()) / 60_000))
+
     if (minutes >= 1_440)
       return language.t("usage.duration.days", {
         days: Math.floor(minutes / 1_440),
         hours: Math.floor((minutes % 1_440) / 60),
       })
+
     if (minutes >= 60)
       return language.t("usage.duration.hours", { hours: Math.floor(minutes / 60), minutes: minutes % 60 })
+
     return language.t("usage.duration.minutes", { minutes })
   }
+
   const label = (value: BudgetLabel): string => {
     if (value.kind === "all") return language.t("usage.budget.all")
+
     if (value.kind === "each") return language.t("usage.budget.each")
+
     if (value.kind === "vendors") {
       const params = {
         vendors: vendors(value.vendors),
         price: value.price === undefined ? "" : format.money(value.price, "auto"),
       }
+
       if (value.price !== undefined)
         return language.t(value.each ? "usage.budget.vendorsPriceEach" : "usage.budget.vendorsPrice", params)
+
       return language.t(value.each ? "usage.budget.vendorsEach" : "usage.budget.vendors", params)
     }
+
     if (value.kind === "price")
       return language.t(value.each ? "usage.budget.priceEach" : "usage.budget.price", {
         price: format.money(value.price, "auto"),
       })
+
     const models =
       value.names.length > 2
         ? language.plural("usage.budget.modelsMore", value.names.length - 2, {
@@ -138,32 +152,45 @@ export function UsageDialogContent(props: {
             second: value.names[1],
           })
         : vendors(value.names)
+
     return value.each ? language.t("usage.budget.modelsEach", { models }) : models
   }
+
   const scope = (row: BudgetRow) => {
     const params = { limit: format.money(row.limit, "auto"), workspace: workspace() }
+
     const amount = {
       you: row.perModel ? "usage.budget.youEach" : "usage.budget.you",
       everyone: row.perModel ? "usage.budget.everyoneEach" : "usage.budget.everyone",
       group: row.perModel ? "usage.budget.groupEach" : "usage.budget.group",
     } as const
+
     return [language.t(amount[row.sharing], params), ...row.notes.map((value) => note(value, row))].join(" · ")
   }
+
   const note = (value: BudgetNote, row: BudgetRow) => {
     if (value.kind === "runs-out-first") return language.t("usage.note.runsOutFirst")
+
     if (value.kind === "paused") return language.t("usage.note.paused", { label: label(row.label) })
+
     if (value.kind === "includes-web-search") return language.t("usage.note.webSearch")
+
     if (value.kind === "paused-by")
       return language.t(value.shared ? "usage.note.pausedByWorkspace" : "usage.note.pausedByBudget")
+
     return language.t("usage.note.currentModel", { model: value.name })
   }
+
   const footer = () => {
     const value = view().footer
+
     if (value.kind === "credits-only") return language.t("usage.footer.creditsOnly", { workspace: workspace() })
+
     return language.t(value.kind === "budgets-reset" ? "usage.footer.budgetsReset" : "usage.footer.resets", {
       time: format.time(value.resetsAt),
     })
   }
+
   const callout = (value: Callout) => {
     if (value.kind === "credits")
       return {
@@ -171,16 +198,19 @@ export function UsageDialogContent(props: {
         body: language.t("usage.callout.credits.body"),
       }
     const params = { workspace: workspace(), time: format.time(value.resetsAt) }
+
     if (value.kind === "workspace")
       return {
         title: language.t("usage.callout.workspace.title"),
         body: language.t("usage.callout.workspace.body", params),
       }
+
     return {
       title: language.t("usage.callout.personal.title"),
       body: language.t("usage.callout.personal.body", params),
     }
   }
+
   const action = (value: LimitAction) => {
     if (value.kind === "other-models")
       return {
@@ -191,6 +221,7 @@ export function UsageDialogContent(props: {
             : language.t("usage.action.otherModels.body"),
       }
     const limit = format.money(value.limit, "auto")
+
     return {
       title:
         value.vendors.length > 0
@@ -205,6 +236,7 @@ export function UsageDialogContent(props: {
         : language.t("usage.action.each.body", { limit }),
     }
   }
+
   const switchModel = () => {
     dialog.close()
     props.onSwitchModel?.()
@@ -334,6 +366,7 @@ export function UsageDialogContent(props: {
 
 function UsageFrame(props: { children: JSX.Element; footer?: JSX.Element }) {
   const language = useLanguage()
+
   return (
     <Dialog fit containerClass="w-[min(calc(100vw-32px),512px)]!">
       <div data-component="usage-dialog" class="flex flex-col self-stretch">
@@ -401,6 +434,7 @@ function Line(props: { class?: string; children: JSX.Element }) {
 
 function GoItem(props: { row: GoRow; used: string; children: JSX.Element }) {
   const language = useLanguage()
+
   return (
     <Item>
       <div class="flex items-center justify-between self-stretch">

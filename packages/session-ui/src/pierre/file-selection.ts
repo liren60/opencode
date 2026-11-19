@@ -58,22 +58,19 @@ export function findCodeSelectionSide(node: Node | null): SelectedLineRange["sid
 }
 
 export function readShadowLineSelection(opts: {
-  root: ShadowRoot
+  root: ShadowRoot & { getSelection?: () => Selection | null }
   lineForNode: (node: Node | null) => number | undefined
   sideForNode?: (node: Node | null) => SelectedLineRange["side"]
   preserveTextSelection?: boolean
 }) {
-  const selection =
-    (opts.root as unknown as { getSelection?: () => Selection | null }).getSelection?.() ?? window.getSelection()
+  const selection:
+    | (Selection & { getComposedRanges?: (options?: { shadowRoots?: ShadowRoot[] }) => StaticRange[] })
+    | null = opts.root.getSelection?.() ?? window.getSelection()
 
   if (!selection || selection.isCollapsed) return
 
   const domRange =
-    (
-      selection as unknown as {
-        getComposedRanges?: (options?: { shadowRoots?: ShadowRoot[] }) => StaticRange[]
-      }
-    ).getComposedRanges?.({ shadowRoots: [opts.root] })?.[0] ??
+    selection.getComposedRanges?.({ shadowRoots: [opts.root] })?.[0] ??
     (selection.rangeCount > 0 ? selection.getRangeAt(0) : undefined)
 
   const startNode = domRange?.startContainer ?? selection.anchorNode

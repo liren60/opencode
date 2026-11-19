@@ -26,7 +26,7 @@ const todosAt = (progress: number): Todo[] =>
     status: index < progress ? "completed" : index === progress ? "in_progress" : "pending",
   }))
 
-const activity: { subagents: SessionActivityItem[]; shells: SessionActivityItem[] } = {
+const activity = {
   subagents: [
     {
       key: "ses_child_audit",
@@ -47,7 +47,7 @@ const activity: { subagents: SessionActivityItem[]; shells: SessionActivityItem[
       started: Date.now() - 341_000,
     },
   ],
-}
+} satisfies { subagents: SessionActivityItem[]; shells: SessionActivityItem[] }
 
 function document(todos: Todo[]): SessionDocument {
   const messages: SessionMessageInfo[] = [

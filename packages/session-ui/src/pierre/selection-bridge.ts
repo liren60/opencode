@@ -83,12 +83,14 @@ export function toRange(source: Range | StaticRange): Range {
   return range
 }
 
-export function restoreShadowTextSelection(root: ShadowRoot | undefined, range: Range | undefined) {
+export function restoreShadowTextSelection(
+  root: (ShadowRoot & { getSelection?: () => Selection | null }) | undefined,
+  range: Range | undefined,
+) {
   if (!root || !range) return
 
   requestAnimationFrame(() => {
-    const selection =
-      (root as unknown as { getSelection?: () => Selection | null }).getSelection?.() ?? window.getSelection()
+    const selection = root.getSelection?.() ?? window.getSelection()
 
     if (!selection) return
 

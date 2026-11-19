@@ -72,6 +72,7 @@ story("desktop message actions still appear on hover and keyboard focus", async 
     await actions.locator("..").hover()
     await expect(actions).toHaveCSS("opacity", "1")
     await expect(actions).toHaveCSS("pointer-events", "auto")
+
     if (action.slot === "text-part-copy-wrapper") {
       await expect(actions).toHaveCSS("height", "20px")
       await expect(actions).toHaveCSS("margin-top", "4px")
@@ -83,14 +84,17 @@ story("desktop message actions still appear on hover and keyboard focus", async 
       await expect(meta.locator('[data-slot="text-part-meta-item"]')).toHaveText(["Build", "Claude Sonnet 4", "4s"])
       const separators = meta.locator('[data-slot="text-part-meta-separator"]')
       await expect(separators).toHaveCount(2)
+
       for (const separator of await separators.all()) {
         await expect(separator).toHaveText("\u00B7")
         await expect(separator).toHaveCSS("opacity", "0.66")
       }
+
       const copy = actions.getByRole("button", { name: action.name, exact: true })
       await expect(copy).toHaveCSS("width", "20px")
       await expect(copy).toHaveCSS("height", "20px")
     }
+
     await page.mouse.move(0, 0)
     await expect(actions).toHaveCSS("opacity", "0")
     await actions.getByRole("button", { name: action.name, exact: true }).focus()

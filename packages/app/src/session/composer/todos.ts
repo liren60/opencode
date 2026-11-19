@@ -1,30 +1,40 @@
 import type { SessionMessageInfo } from "@opencode/client/promise"
+import { Option, Schema } from "effect"
 
-export type TodoStatus = "pending" | "in_progress" | "completed" | "cancelled"
+const statuses = Schema.Literals(["pending", "in_progress", "completed", "cancelled"])
+
+export type TodoStatus = typeof statuses.Type
 
 export type Todo = {
   content: string
   status: TodoStatus
 }
 
-const statuses = new Set<unknown>(["pending", "in_progress", "completed", "cancelled"])
+const decodeTodo = Schema.decodeUnknownOption(
+  Schema.Struct({ content: Schema.String, status: Schema.optionalKey(Schema.Unknown) }),
+)
+
+const decodeStatus = Schema.decodeUnknownOption(statuses)
 
 // The experimental `todowrite` tool keeps no server state: the current list is the input of the latest completed call
 // before the revert boundary.
 export function sessionTodos(messages: readonly SessionMessageInfo[], boundary?: string): Todo[] {
   const end = boundary ? messages.findIndex((message) => message.id === boundary) : -1
+
   const input = messages
     .slice(0, end === -1 ? messages.length : end)
     .flatMap((message) => (message.type === "assistant" ? message.content : []))
     .findLast((item) => item.type === "tool" && item.name === "todowrite" && item.state.status === "completed")
+
   const todos = input?.type === "tool" && input.state.status === "completed" ? input.state.input.todos : undefined
 
   if (!Array.isArray(todos)) return []
 
-  return todos.flatMap((item: unknown) => {
-    if (typeof item !== "object" || item === null || !("content" in item) || typeof item.content !== "string") return []
-    if (!item.content) return []
-    const status = "status" in item && statuses.has(item.status) ? (item.status as TodoStatus) : "pending"
+  return todos.flatMap((value) => {
+    const item = Option.getOrUndefined(decodeTodo(value))
+
+    if (!item?.content) return []
+    const status = Option.getOrElse(decodeStatus(item.status), (): TodoStatus => "pending")
 
     return [{ content: item.content, status }]
   })
