@@ -72,7 +72,7 @@ export function analyzeVisualObservations<RegionName extends string>(
     }
 
     if (stable.has(name)) {
-      const identities = [...new Set(visible.map((sample) => sample.node).filter((node) => node > 0))]
+      const identities = [...new Set(visible.flatMap((sample) => sample.node > 0 ? [sample.node] : []))]
 
       if (identities.length > 1) issues.push(`${name} remounted ${identities.length - 1} times`)
     }
@@ -112,8 +112,11 @@ export function analyzeVisualObservations<RegionName extends string>(
       for (const metric of ["top", "bottom", "width", "height"] as const) {
         const directions = visible
           .slice(1)
-          .map((sample, index) => sample[metric] - visible[index]![metric])
-          .filter((delta) => Math.abs(delta) > (invariant.tolerance ?? 1))
+          .flatMap((sample, index) => {
+            const delta = sample[metric] - visible[index]![metric]
+
+            return Math.abs(delta) > (invariant.tolerance ?? 1) ? [delta] : []
+          })
           .map(Math.sign)
 
         const reversals = directions.slice(1).filter((direction, index) => direction !== directions[index]).length
@@ -129,8 +132,7 @@ export function analyzeVisualObservations<RegionName extends string>(
 
     if (labelStability.some((invariant) => includes(invariant.regions, name))) {
       const labels = samples
-        .map((sample) => sample.label)
-        .filter((label) => label.length > 0)
+        .flatMap((sample) => sample.label.length > 0 ? [sample.label] : [])
         .filter((label, index, all) => label !== all[index - 1])
 
       if (labels.some((label, index) => labels.indexOf(label) !== index))

@@ -1,7 +1,6 @@
 import { describe, expect, test } from "bun:test"
+import { ServerConnection } from "./registry"
 import { ScopedKey, ServerScope, SessionRouteKey, SessionStateKey } from "./scope"
-
-type ServerKey = Parameters<typeof ServerScope.fromServerKey>[0]
 
 describe("ServerScope", () => {
   test.each([
@@ -19,20 +18,26 @@ describe("ServerScope", () => {
       scope: "local",
     },
   ])("scopes $name as $scope", ({ key, canonical, scope }) => {
-    expect(String(ServerScope.fromServerKey(key as ServerKey, canonical as ServerKey | undefined))).toBe(scope)
+    expect(
+      String(
+        ServerScope.fromServerKey(
+          ServerConnection.Key.make(key),
+          canonical === undefined ? undefined : ServerConnection.Key.make(canonical),
+        ),
+      ),
+    ).toBe(scope)
   })
 })
 
 describe("SessionStateKey", () => {
   test("combines local and remote scope with route identity and extracts the route again", () => {
     const route = SessionRouteKey.fromRoute("cmVwbw", "session-1")
+    const windows = ServerScope.fromServerKey(ServerConnection.Key.make("https://windows.example"))
+    const debian = ServerScope.fromServerKey(ServerConnection.Key.make("https://debian.example"))
+
     expect(String(SessionStateKey.from(ServerScope.local, route))).toBe("local\0cmVwbw/session-1")
-    expect(String(SessionStateKey.from("https://windows.example" as ServerScope, route))).toBe(
-      "https://windows.example\0cmVwbw/session-1",
-    )
-    expect(SessionStateKey.from("https://debian.example" as ServerScope, route)).not.toBe(
-      SessionStateKey.from("https://windows.example" as ServerScope, route),
-    )
+    expect(String(SessionStateKey.from(windows, route))).toBe("https://windows.example\0cmVwbw/session-1")
+    expect(SessionStateKey.from(debian, route)).not.toBe(SessionStateKey.from(windows, route))
     expect(String(SessionStateKey.route("local\0cmVwbw/session-1"))).toBe("cmVwbw/session-1")
     expect(String(SessionStateKey.route("https://debian.example\0cmVwbw/session-1"))).toBe("cmVwbw/session-1")
   })

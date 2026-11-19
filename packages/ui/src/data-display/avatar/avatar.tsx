@@ -1,4 +1,4 @@
-import { type ComponentProps, splitProps, Show } from "solid-js"
+import { type ComponentProps, type JSX, splitProps, Show } from "solid-js"
 import "./avatar.css"
 
 const segmenter =
@@ -38,6 +38,16 @@ export function Avatar(props: AvatarProps) {
 
   const src = split.src // did this so i can zero it out to test fallback
 
+  const style = () => {
+    const value: JSX.CSSProperties = typeof split.style === "object" ? { ...split.style } : {}
+
+    if (!src && split.background) value["--avatar-bg"] = split.background
+
+    if (!src && split.foreground) value["--avatar-fg"] = split.foreground
+
+    return value
+  }
+
   return (
     <div
       {...rest}
@@ -49,11 +59,7 @@ export function Avatar(props: AvatarProps) {
         ...split.classList,
         [split.class ?? ""]: !!split.class,
       }}
-      style={{
-        ...(typeof split.style === "object" ? split.style : {}),
-        ...(!src && split.background ? { "--avatar-bg": split.background } : {}),
-        ...(!src && split.foreground ? { "--avatar-fg": split.foreground } : {}),
-      }}
+      style={style()}
     >
       <Show when={src} fallback={first(split.fallback)}>
         {(src) => <img src={src()} draggable={false} data-slot="avatar-image" />}

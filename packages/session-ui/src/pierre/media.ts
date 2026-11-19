@@ -1,17 +1,13 @@
-import type { PresentationFileContent } from "../file-presentation"
-
 export type MediaKind = "image" | "audio" | "svg"
 
 const imageExtensions = new Set(["png", "jpg", "jpeg", "gif", "webp", "avif", "bmp", "ico", "tif", "tiff", "heic"])
 
 const audioExtensions = new Set(["mp3", "wav", "ogg", "m4a", "aac", "flac", "opus"])
 
-type MediaValue = unknown
-
 function mediaRecord(value: unknown) {
   if (!value || typeof value !== "object") return
 
-  return value as Partial<PresentationFileContent> & {
+  return value as {
     content?: unknown
     encoding?: unknown
     mimeType?: unknown
@@ -51,7 +47,7 @@ export function mediaKindFromPath(path: string | undefined): MediaKind | undefin
   if (audioExtensions.has(ext)) return "audio"
 }
 
-export function isBinaryContent(value: MediaValue) {
+export function isBinaryContent(value: unknown) {
   return mediaRecord(value)?.type === "binary"
 }
 
@@ -67,7 +63,7 @@ function validDataUrl(value: string, kind: MediaKind) {
   if (value.startsWith("data:audio/")) return value
 }
 
-export function dataUrlFromMediaValue(value: MediaValue, kind: MediaKind) {
+export function dataUrlFromMediaValue(value: unknown, kind: MediaKind) {
   if (!value) return
 
   if (typeof value === "string") {
@@ -114,7 +110,7 @@ function decodeBase64Utf8(value: string) {
   } catch {}
 }
 
-export function svgTextFromValue(value: MediaValue) {
+export function svgTextFromValue(value: unknown) {
   const record = mediaRecord(value)
 
   if (!record) return
@@ -130,7 +126,7 @@ export function svgTextFromValue(value: MediaValue) {
   return record.content
 }
 
-export function hasMediaValue(value: MediaValue) {
+export function hasMediaValue(value: unknown) {
   if (typeof value === "string") return value.length > 0
   const record = mediaRecord(value)
 

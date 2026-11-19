@@ -31,6 +31,8 @@ import projectCenter from "./project-center"
 import projectCenterRenderer from "./project-center/renderer"
 import projectNavigation from "./project-navigation"
 import projectNavigationRenderer from "./project-navigation/renderer"
+import goal from "./goal"
+import goalRenderer from "./goal/renderer"
 
 // The window renders once every built-in is active, so the small renderer entries load with the app, like the
 // features they replaced. Heavy UI stays behind `lazy()` inside them.
@@ -55,4 +57,5 @@ export const builtins = compose({
   sources: { ...sources, windowEntry: eager(sourcesRenderer) },
   "project-center": { ...projectCenter, windowEntry: eager(projectCenterRenderer) },
   "project-navigation": { ...projectNavigation, windowEntry: eager(projectNavigationRenderer) },
+  goal: { ...goal, windowEntry: eager(goalRenderer) },
 })

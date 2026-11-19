@@ -31,6 +31,12 @@ export function summarizeNavigationMilestones(samples: NavigationMilestoneSample
   }
 }
 
+declare global {
+  interface Window {
+    __navigationMilestones?: NavigationMilestoneProbe
+  }
+}
+
 type NavigationMilestoneProbe = {
   samples: NavigationMilestoneSample[]
   stop: () => void
@@ -131,7 +137,7 @@ export async function measureNavigationMilestones(
 
       document.addEventListener("mousedown", start, true)
       document.addEventListener("click", start, true)
-      ;(window as Window & { __navigationMilestones?: NavigationMilestoneProbe }).__navigationMilestones = {
+      window.__navigationMilestones = {
         samples,
         stop: () => {
           running = false
@@ -146,8 +152,7 @@ export async function measureNavigationMilestones(
   try {
     await input.navigate()
     await page.waitForFunction(() => {
-      const samples = (window as Window & { __navigationMilestones?: NavigationMilestoneProbe }).__navigationMilestones
-        ?.samples
+      const samples = window.__navigationMilestones?.samples
 
       return (
         samples &&
@@ -157,13 +162,13 @@ export async function measureNavigationMilestones(
     })
 
     const samples = await page.evaluate(
-      () => (window as Window & { __navigationMilestones?: NavigationMilestoneProbe }).__navigationMilestones!.samples,
+      () => window.__navigationMilestones!.samples,
     )
 
     return { summary: summarizeNavigationMilestones(samples), samples }
   } finally {
     await page.evaluate(() => {
-      const host = window as Window & { __navigationMilestones?: NavigationMilestoneProbe }
+      const host = window
       host.__navigationMilestones?.stop()
       delete host.__navigationMilestones
     })

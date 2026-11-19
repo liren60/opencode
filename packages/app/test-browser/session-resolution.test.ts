@@ -5,6 +5,8 @@ import { createSessionResolution } from "@/session/session-resolution"
 
 type Session = { id: string; directory: string }
 
+type SyncCalls = { syncs: string[] }
+
 const sessionOf = (id: string): Session => ({ id, directory: `/dir/${id}` })
 
 // Fake session store: get reads a reactive cache, sync returns a
@@ -14,10 +16,10 @@ const sessionOf = (id: string): Session => ({ id, directory: `/dir/${id}` })
 // would see them in the app. Assertions wrap write + read to cover both.
 function createFixture(initial: Record<string, Session> = {}) {
   const [cache, setCache] = createSignal(initial)
-  const deferred = new Map<string, PromiseWithResolvers<unknown>>()
+  const deferred = new Map<string, PromiseWithResolvers<void>>()
   const resolves: string[] = []
-  const messages = { syncs: [] as string[], ...Promise.withResolvers<unknown>() }
-  const pending = { syncs: [] as string[] }
+  const messages: PromiseWithResolvers<void> & SyncCalls = { syncs: [], ...Promise.withResolvers<void>() }
+  const pending: SyncCalls = { syncs: [] }
 
   return {
     resolves,
@@ -27,7 +29,7 @@ function createFixture(initial: Record<string, Session> = {}) {
       get: (id: string) => cache()[id],
       sync: (id: string) => {
         resolves.push(id)
-        const entry = deferred.get(id) ?? Promise.withResolvers<unknown>()
+        const entry = deferred.get(id) ?? Promise.withResolvers<void>()
         deferred.set(id, entry)
 
         return entry.promise
@@ -52,7 +54,7 @@ function createFixture(initial: Record<string, Session> = {}) {
       deferred.get(id)?.resolve(undefined)
       deferred.delete(id)
     },
-    fail(id: string, error: unknown) {
+    fail(id: string, error: Error) {
       deferred.get(id)?.reject(error)
       // The real store does not cache failures: the inflight request entry is
       // dropped on rejection so the next resolve retries.

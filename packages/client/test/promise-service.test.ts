@@ -174,7 +174,12 @@ test("accepts a surviving contender after a failure without recruiting replaceme
 
 test("recovers when an unresponsive contender is evicted after a prior failure", async () => {
   await using fixture = await serviceFixture()
-  const pending = ensure({ file: fixture.registration, version: "test", command: fixture.command("controlled") })
+  // Three real Windows spawns can each take 900ms; this case proves recovery, not the 3s deadline.
+  const pending = accelerate(Service.ensure, 10_000)({
+    file: fixture.registration,
+    version: "test",
+    command: fixture.command("controlled"),
+  })
   const [first, second] = await fixture.waitForStarts(2)
   await fixture.release(second, "hang")
   await fixture.waitForFile()
@@ -186,7 +191,7 @@ test("recovers when an unresponsive contender is evicted after a prior failure",
 
   expect((await Service.discover({ file: fixture.registration, version: "test" }))?.url).toBe(endpoint.url)
   expect((await Bun.file(fixture.registration).json()).pid).toBe(third)
-})
+}, 15_000)
 
 test("reports a bounded contender stderr tail with native promises", async () => {
   await using fixture = await serviceFixture()

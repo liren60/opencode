@@ -19,7 +19,7 @@ let current: FindHost | undefined
 
 let installed = false
 
-function isEditable(node: unknown): boolean {
+function isEditable(node: EventTarget | null): boolean {
   if (!(node instanceof HTMLElement)) return false
 
   if (node.closest("[data-prevent-autofocus]")) return true
@@ -29,7 +29,7 @@ function isEditable(node: unknown): boolean {
   return /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(node.tagName)
 }
 
-function hostForNode(node: unknown) {
+function hostForNode(node: EventTarget | null) {
   if (!(node instanceof Node)) return
 
   for (const host of hosts) {
@@ -94,7 +94,7 @@ function installShortcuts() {
 }
 
 function clearHighlightFind() {
-  const api = (globalThis as { CSS?: { highlights?: { delete: (name: string) => void } } }).CSS?.highlights
+  const api = globalThis.CSS?.highlights
 
   if (!api) return
   api.delete("opencode-find")
@@ -102,7 +102,7 @@ function clearHighlightFind() {
 }
 
 function supportsHighlights() {
-  const g = globalThis as unknown as { CSS?: { highlights?: unknown }; Highlight?: unknown }
+  const g = globalThis
 
   return typeof g.Highlight === "function" && g.CSS?.highlights != null
 }
@@ -337,10 +337,7 @@ export function createFileFind(opts: CreateFileFindOptions) {
   }
 
   const setHighlights = (ranges: Range[], currentIndex: number) => {
-    const root = globalThis as unknown as {
-      CSS?: { highlights?: { delete: (name: string) => void; set: (name: string, value: unknown) => void } }
-      Highlight?: new (...ranges: Range[]) => unknown
-    }
+    const root = globalThis
 
     const api = root.CSS?.highlights
     const Highlight = root.Highlight

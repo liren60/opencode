@@ -46,6 +46,7 @@ export function SessionLocationMissing(props: { sessionID: string; projectID: st
 
   const visibleWorktrees = () => {
     const query = state.search.trim().toLowerCase()
+
     const matches = query
       ? otherWorktrees().filter((item) => getFilename(item.directory).toLowerCase().includes(query))
       : otherWorktrees()
@@ -157,8 +158,11 @@ export function SessionLocationMissing(props: { sessionID: string; projectID: st
                     "keydown",
                     (event) => {
                       if (!searchInput || event.target === searchInput) return
+
                       if (event.ctrlKey || event.metaKey || event.altKey) return
+
                       if (event.key.length !== 1 && event.key !== "Backspace") return
+
                       if (event.key === " " && !state.search) return
                       event.stopPropagation()
                       searchInput.focus({ preventScroll: true })

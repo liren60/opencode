@@ -23,6 +23,12 @@ type CachedRepaintTrace = {
   stop: () => void
 }
 
+declare global {
+  interface Window {
+    __cachedFlash?: CachedRepaintTrace
+  }
+}
+
 export async function installCachedRepaintProbe(
   page: Page,
   input: { targetHref: string; destination: string[]; source: string[]; last: string; windowMs: number },
@@ -57,19 +63,18 @@ export async function installCachedRepaintProbe(
       if (!state.running) return
       state.shifts.push(
         ...entries
-          .map((entry) => {
+          .flatMap((entry) => {
             if (
               entry.startTime < state.startedAtPerformanceMs ||
               entry.startTime > state.startedAtPerformanceMs + state.windowMs
             )
-              return
+              return []
 
-            return {
+            return [{
               occurredAtMs: entry.startTime - state.startedAtPerformanceMs,
               value: (entry as PerformanceEntry & { value: number }).value,
-            }
-          })
-          .filter((entry): entry is { occurredAtMs: number; value: number } => entry !== undefined),
+            }]
+          }),
       )
     }
 
@@ -116,26 +121,22 @@ export async function installCachedRepaintProbe(
           const view = root.getBoundingClientRect()
 
           const rows = [...root.querySelectorAll<HTMLElement>("[data-timeline-key]")]
-            .map((element) => ({
-              key: element.dataset.timelineKey,
-              node: id(element),
-              rect: element.getBoundingClientRect(),
-            }))
-            .filter((item) => item.rect.bottom > view.top && item.rect.top < view.bottom)
-            .map((item) => ({
-              key: item.key,
-              node: item.node,
-              top: item.rect.top - view.top,
-              bottom: item.rect.bottom - view.top,
-            }))
-
-          const messages = [...root.querySelectorAll<HTMLElement>("[data-message-id]")]
-            .filter((element) => {
+            .flatMap((element) => {
+              const key = element.dataset.timelineKey
+              const node = id(element)
               const rect = element.getBoundingClientRect()
 
               return rect.bottom > view.top && rect.top < view.bottom
+                ? [{ key, node, top: rect.top - view.top, bottom: rect.bottom - view.top }]
+                : []
             })
-            .map((element) => element.dataset.messageId!)
+
+          const messages = [...root.querySelectorAll<HTMLElement>("[data-message-id]")]
+            .flatMap((element) => {
+              const rect = element.getBoundingClientRect()
+
+              return rect.bottom > view.top && rect.top < view.bottom ? [element.dataset.messageId!] : []
+            })
 
           const spacer = root.querySelector<HTMLElement>('[data-timeline-row="bottom-spacer"]')?.getBoundingClientRect()
           state.samples.push({
@@ -185,7 +186,7 @@ export async function installCachedRepaintProbe(
       },
       { capture: true, once: true },
     )
-    ;(window as Window & { __cachedFlash?: CachedRepaintTrace }).__cachedFlash = state
+    window.__cachedFlash = state
   }, input)
 }
 
@@ -197,7 +198,7 @@ export function layoutShiftSample(entry: Pick<PerformanceEntry, "startTime"> & {
 
 export async function waitForCachedRepaintWindow(page: Page, durationMs: number) {
   await page.waitForFunction((durationMs) => {
-    const state = (window as Window & { __cachedFlash?: CachedRepaintTrace }).__cachedFlash
+    const state = window.__cachedFlash
 
     return !!state?.running && performance.now() - state.startedAtPerformanceMs >= durationMs
   }, durationMs)
@@ -205,7 +206,7 @@ export async function waitForCachedRepaintWindow(page: Page, durationMs: number)
 
 export async function collectCachedRepaintTrace(page: Page) {
   return page.evaluate(() => {
-    const state = (window as Window & { __cachedFlash?: CachedRepaintTrace }).__cachedFlash!
+    const state = window.__cachedFlash!
     state.stop()
 
     return state

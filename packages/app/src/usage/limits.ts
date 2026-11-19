@@ -80,14 +80,18 @@ export function usageView(
   const budgets = info.budgets
     .map((budget) => ({ budget, ...spend(budget, context.model) }))
     .toSorted((a, b) => a.left - b.left)
+
   const blocking = budgets.find((entry) => entry.reached && entry.budget.coverage === "all")
+
   const callout: Callout | undefined = context.credits
     ? { kind: "credits" }
     : blocking && { kind: blocking.budget.shared ? "workspace" : "personal", resetsAt: blocking.budget.resetsAt }
+
   const anyReached = budgets.some((entry) => entry.reached)
   const reachedModels = budgets.find((entry) => entry.reached && entry.budget.coverage === "models")
   const resetsAt = Math.min(...info.budgets.map((budget) => budget.resetsAt))
   const go = info.go
+
   return {
     workspace: info.workspace.name,
     callout,
@@ -134,13 +138,18 @@ export function modelUsage(
   model: { readonly id: string; readonly provider: { readonly id: string; readonly integrationID?: string } },
 ): ModelUsage | undefined {
   const served = model.provider.integrationID === "opencode" && model.provider.id !== "opencode-go"
+
   const covering = info.budgets.flatMap((budget) => {
     if (budget.coverage === "all") return served ? [{ budget, spent: budget.spent }] : []
     const entry = budget.models.find((item) => item.providerID === model.provider.id && item.modelID === model.id)
+
     if (!entry) return []
+
     return [{ budget, spent: budget.per === "model" ? (entry.spent ?? 0) : budget.spent }]
   })
+
   if (covering.length === 0) return undefined
+
   return {
     left: Math.min(...covering.map((entry) => Math.max(0, entry.budget.limit - entry.spent))),
     reached: covering.some((entry) => entry.spent >= entry.budget.limit),
@@ -154,36 +163,48 @@ function spend(budget: UsageLimitsBudget, model: CurrentModel | undefined) {
     budget.per === "model" && model
       ? budget.models.find((entry) => entry.providerID === model.providerID && entry.modelID === model.modelID)
       : undefined
+
   const spent = current?.spent ?? budget.spent
+
   return { current: current && model, spent, reached: spent >= budget.limit, left: Math.max(0, budget.limit - spent) }
 }
 
 function label(budget: UsageLimitsBudget): BudgetLabel {
   const each = budget.per === "model"
+
   if (budget.coverage === "all") return { kind: "all" }
-  if (budget.vendors.length > 0)
-    return {
+
+  if (budget.vendors.length > 0) {
+    const vendorLabel = {
       kind: "vendors",
       vendors: budget.vendors,
       each,
-      ...(budget.inputPriceAtLeast === undefined ? {} : { price: budget.inputPriceAtLeast }),
-    }
+    } satisfies BudgetLabel
+
+    return budget.inputPriceAtLeast === undefined ? vendorLabel : { ...vendorLabel, price: budget.inputPriceAtLeast }
+  }
+
   if (budget.inputPriceAtLeast !== undefined) return { kind: "price", price: budget.inputPriceAtLeast, each }
+
   if (budget.picked) return { kind: "models", names: budget.models.map((model) => model.name), each }
+
   return { kind: "each" }
 }
 
 // A per-model budget counts as reached by the model in use, so the model in use never has room to suggest.
 function action(budget: UsageLimitsBudget): LimitAction {
   if (budget.per !== "model") return { kind: "other-models", vendors: budget.vendors }
+
   const room = budget.models
     .map((entry) => ({ name: entry.name, left: Math.max(0, budget.limit - (entry.spent ?? 0)) }))
     .filter((entry) => entry.left > 0)
     .toSorted((a, b) => b.left - a.left)[0]
-  return {
+
+  const choice = {
     kind: "other-models-each",
     vendors: budget.vendors,
     limit: budget.limit,
-    ...(room ? { suggestion: room } : {}),
-  }
+  } satisfies LimitAction
+
+  return room ? { ...choice, suggestion: room } : choice
 }

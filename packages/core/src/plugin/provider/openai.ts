@@ -25,6 +25,8 @@ const browserMethodID = Integration.MethodID.make("chatgpt-browser")
 const headlessMethodID = Integration.MethodID.make("chatgpt-headless")
 // Codex rejects gpt-5.5 and older models, including gpt-5.3-codex-spark, for ChatGPT accounts.
 const codexDisallowed = new Set(["gpt-5.6"])
+// The image models the Codex client generates and edits with on the Codex login.
+const codexImageModels = new Set(["gpt-image-2"])
 
 type Pkce = {
   verifier: string
@@ -145,12 +147,22 @@ function bindWithRetry(server: Server, port: number, attempts: number): Effect.E
 
 function bind(server: Server, port: number) {
   return Effect.callback<void, Error>((resume) => {
-    const onError = (error: Error) => resume(Effect.fail(error))
-    server.once("error", onError)
-    server.listen(port, "localhost", () => {
+    const cleanup = () => {
       server.off("error", onError)
+      server.off("listening", onListening)
+    }
+    const onError = (error: Error) => {
+      cleanup()
+      resume(Effect.fail(error))
+    }
+    const onListening = () => {
+      cleanup()
       resume(Effect.void)
-    })
+    }
+    server.once("error", onError)
+    server.once("listening", onListening)
+    server.listen(port, "localhost")
+    return Effect.sync(cleanup)
   })
 }
 
@@ -285,6 +297,11 @@ export const OpenAIPlugin = define({
             return
           }
           const apiID = draft.modelID ?? draft.id
+          if (draft.type === "image") {
+            if (codexImageModels.has(apiID)) draft.cost = []
+            else draft.enabled = false
+            return
+          }
           const match = apiID.match(/^gpt-(\d+)(?:\.(\d+))?/)
           const major = Number(match?.[1])
           const minor = Number(match?.[2] ?? 0)

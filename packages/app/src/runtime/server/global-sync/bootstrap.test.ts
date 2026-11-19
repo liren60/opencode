@@ -1,10 +1,10 @@
 import { describe, expect, test } from "bun:test"
 import { QueryClient } from "@tanstack/solid-query"
-import { OpenCode } from "@opencode/client/promise"
+import { OpenCode, type LocationGetInput } from "@opencode/client/promise"
 import { createStore } from "solid-js/store"
 import { bootstrapGlobal, inferHomeDirectory, loadPathQuery, loadProjectsQuery } from "./bootstrap"
 import { ServerScope } from "@/runtime/server/scope"
-import type { ServerApi } from "@/runtime/server/api"
+import { ServerConnection } from "@/runtime/server/registry"
 import { createServerTransport } from "@/runtime/server/client"
 import type { ServerSync } from "@/runtime/server/sync"
 import { worktreeInventoryKey } from "@/workspaces/inventory"
@@ -112,17 +112,17 @@ test("recovers project metadata after the connection to the server is dropped", 
 
 describe("query keys", () => {
   test("partitions identical directories by server scope and loads current location metadata", async () => {
-    const calls: unknown[] = []
+    const calls: Array<LocationGetInput | undefined> = []
 
     const location = {
-      get: async (input: unknown) => {
+      get: async (input) => {
         calls.push(input)
 
-        return { directory: "/repo/subpath", project: { id: "project", directory: "/repo" } }
+        return { directory: "/repo/subpath", project: { id: "project", directory: "/repo", canonical: "/repo" } }
       },
-    } as ServerApi["location"]
+    } satisfies Parameters<typeof loadPathQuery>[2]
 
-    const remote = "https://debian.example" as typeof ServerScope.local
+    const remote = ServerScope.fromServerKey(ServerConnection.Key.make("https://debian.example"))
 
     expect([...loadPathQuery(ServerScope.local, "/repo", location).queryKey]).toEqual(["local", "/repo", "path"])
     expect([...loadPathQuery(remote, "/repo", location).queryKey]).toEqual(["https://debian.example", "/repo", "path"])

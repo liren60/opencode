@@ -296,10 +296,12 @@ const TEXTILES: Definition[] = [
     paint: (pixels, p, t) => {
       const cycle = colors(p, "z", p.count)
       const rand = mulberry32(p.seed)
+
       const walk = Array.from({ length: 16 }).reduce<number[]>(
         (list) => [...list, (list[list.length - 1] ?? 0) + pick(rand, [-2, -1, 1, 1, 2, 2])],
         [],
       )
+
       const shift = t * 4
 
       pixels.each((cx, cy) => {
@@ -435,7 +437,7 @@ const TEXTILES: Definition[] = [
         dye: pick(r, INDIGO),
         cloth: pick(r, [0xeef0ee, 0xf2ead8, 0xe3e8ee]),
         cells: pick(r, [2, 3, 4]),
-        shape: int(r, 0, 2),
+        motif: int(r, 0, 2),
         angle: range(r, 0.3, 1.2) * (r() < 0.5 ? 1 : -1),
         spacing: range(r, 3.5, 6),
         centers: int(r, 1, 3),
@@ -446,20 +448,23 @@ const TEXTILES: Definition[] = [
     },
     paint: (pixels, p) => {
       const rand = mulberry32(p.seed)
+
       const webs = Array.from({ length: p.centers }, () => ({
         x: range(rand, 6, 26),
         y: range(rand, 6, 26),
         r: range(rand, 7, 12),
       }))
+
       const size = 32 / p.cells
 
       pixels.each((x, y) => {
         const n = fbm(x * 0.2 + p.seedX, y * 0.2 + p.seedY)
+
         const kinds = [
           () => {
             const u = ((x + 0.5) % size) / size - 0.5
             const v = ((y + 0.5) % size) / size - 0.5
-            const d = [Math.max(Math.abs(u), Math.abs(v)), Math.hypot(u, v), Math.abs(u) + Math.abs(v)][p.shape]
+            const d = [Math.max(Math.abs(u), Math.abs(v)), Math.hypot(u, v), Math.abs(u) + Math.abs(v)][p.motif]
 
             return smoothstep(0.32, 0.22, d + (n - 0.5) * 0.18)
           },
@@ -532,6 +537,7 @@ const PRINT: Definition[] = [
           const along = u * cos + v * sin
 
           if (kind === 1) return Math.floor((along + 2) * bands) % 2
+
           if (kind === 2) return along > 0 ? 1 : 0
           const d = Math.hypot(u, v)
 
@@ -814,12 +820,14 @@ const ART: Definition[] = [
       ctx.lineCap = "round"
       ctx.lineJoin = "round"
       ctx.lineWidth = px * 0.075
+
       const spots = shuffle(rand, [
         [0.28, 0.28],
         [0.72, 0.3],
         [0.3, 0.72],
         [0.72, 0.72],
       ])
+
       const kinds = shuffle(rand, [0, 1, 2, 3, 4, 5])
 
       spots.slice(0, p.count).forEach(([u, v], i) => {
@@ -831,7 +839,7 @@ const ART: Definition[] = [
         ctx.strokeStyle = ink
         ctx.beginPath()
 
-        const shapes = [
+        const motifs = [
           () => {
             ctx.moveTo(x - s * 1.2, y)
             Array.from({ length: 13 }, (_, k) =>
@@ -868,7 +876,7 @@ const ART: Definition[] = [
           },
         ]
 
-        shapes[kinds[i]]()
+        motifs[kinds[i]]()
       })
     },
   },

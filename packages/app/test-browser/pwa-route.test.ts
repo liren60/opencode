@@ -30,7 +30,10 @@ test("detects iOS home-screen apps when the standalone media query does not matc
   } finally {
     if (descriptor) Object.defineProperty(navigator, "standalone", descriptor)
 
-    if (!descriptor) delete (navigator as Navigator & { standalone?: boolean }).standalone
+    if (!descriptor) {
+      const host: Navigator & { standalone?: boolean } = navigator
+      delete host.standalone
+    }
   }
 })
 

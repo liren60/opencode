@@ -576,6 +576,10 @@ const Root = Spec.make(typeof OPENCODE_CLI_NAME === "string" ? OPENCODE_CLI_NAME
           Flag.atLeast(0),
         ),
         service: Flag.Boolean("service").pipe(Flag.withDefault(false)),
+        detach: Flag.Boolean("detach").pipe(
+          Flag.withDescription("Start the managed service through a short-lived launcher (requires --service)"),
+          Flag.withDefault(false),
+        ),
         stdio: Flag.Boolean("stdio").pipe(Flag.withDefault(false)),
       },
     }),

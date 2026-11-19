@@ -31,8 +31,7 @@ export async function startChromeTrace(page: Page, name: string): Promise<undefi
       transferMode: "ReturnAsStream",
       traceConfig: {
         excludedCategories: categories
-          .filter((category) => category.startsWith("-"))
-          .map((category) => category.slice(1)),
+          .flatMap((category) => category.startsWith("-") ? [category.slice(1)] : []),
         includedCategories: [
           ...categories.filter((category) => !category.startsWith("-")),
           ...(process.env.OPENCODE_PERFORMANCE_STACK_TRACE === "1"

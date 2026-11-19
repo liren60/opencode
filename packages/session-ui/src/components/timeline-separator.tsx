@@ -11,6 +11,7 @@ export function TimelineSeparator(props: {
 }) {
   const gradient =
     "linear-gradient(90deg, color-mix(in srgb, var(--v2-border-border-base) 0%, transparent) 0%, color-mix(in srgb, var(--v2-border-border-strong) 100%, transparent) 70%)"
+
   const label = () => (
     <bdi
       data-slot="session-timeline-notice-label"

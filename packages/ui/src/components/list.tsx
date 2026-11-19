@@ -60,9 +60,13 @@ export function List<T>(props: ListProps<T> & { ref?: (ref: ListRef) => void }) 
   const i18n = useI18n()
   let inputRef: HTMLInputElement | HTMLTextAreaElement | undefined
 
-  const [store, setStore] = createStore({
+  const [store, setStore] = createStore<{
+    mouseActive: boolean
+    scrollRef: HTMLDivElement | undefined
+    internalFilter: string
+  }>({
     mouseActive: false,
-    scrollRef: undefined as HTMLDivElement | undefined,
+    scrollRef: undefined,
     internalFilter: "",
   })
 
@@ -222,9 +226,9 @@ export function List<T>(props: ListProps<T> & { ref?: (ref: ListRef) => void }) 
   }
 
   function GroupHeader(groupProps: { group: { category: string; items: T[] } }): JSX.Element {
-    const [state, setState] = createStore({
+    const [state, setState] = createStore<{ stuck: boolean; header: HTMLDivElement | undefined }>({
       stuck: false,
-      header: undefined as HTMLDivElement | undefined,
+      header: undefined,
     })
 
     createEffect(() => {

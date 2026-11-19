@@ -92,9 +92,9 @@ test("pointer selection, keyboard navigation, the empty state, and the local fin
     0, 4,
   ])
 
-  await view.search.fill("zzzzzzzzzz")
+  await view.search.fill("zzzz")
   await expect(view.results.getByRole("option")).toHaveCount(0)
-  await expect(view.settings.getByRole("status")).toHaveText('No results for "zzzzzzzzzz"')
+  await expect(view.settings.getByRole("status")).toHaveText('No results for "zzzz"')
   await view.search.press("Escape")
   await expect(view.search).toHaveValue("")
 
@@ -311,8 +311,12 @@ test("section search takes typed input, clears in place, and escapes in steps", 
 })
 
 for (const count of [0, 7, 8]) {
-  test(`Projects search appears from 8 projects (${count} projects)`, async ({ page }) => {
-    const view = await open(page, { count })
+  test(`Projects search appears from 8 added projects (${count} projects)`, async ({ page }) => {
+    const view = await open(page, {
+      count,
+      seed: { usedProjects: { local: Array.from({ length: count }, (_, index) => `proj_search_${index}`) } },
+    })
+
     await view.settings.getByRole("tab", { name: "Projects", exact: true }).click()
     const search = view.settings.getByRole("searchbox", { name: "Search projects", exact: true })
     const projects = view.settings.getByRole("button", { name: /^OpenCode / })

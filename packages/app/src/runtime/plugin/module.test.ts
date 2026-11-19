@@ -23,6 +23,7 @@ exports.default = sdk.Plugin.define({
 `
 
 describe("plugin GUIs in a window", () => {
+  // The first definition loads all 16 real host-shared modules, including the generated clients.
   test("declare their definition before they start, with the app's module instances and Electron inert", async () => {
     const definition = await pluginDefinition("acme", bundle)
     const added: { readonly registry: Registry<Command>; readonly item: Command }[] = []
@@ -46,7 +47,7 @@ describe("plugin GUIs in a window", () => {
     expect(added[0]?.item).toMatchObject({ id: "open", title: "Notes1" })
     // The setup's returned cleanup reaches the host.
     expect(cleanup).toBeFunction()
-  })
+  }, 30_000)
 
   test("fail only their own entry when they require a module the app does not share", async () => {
     const definition = await pluginDefinition("acme", 'require("left-pad"); exports.default = { setup() {} }')

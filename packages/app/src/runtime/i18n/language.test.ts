@@ -17,6 +17,7 @@ describe("rich translations", () => {
 })
 
 describe("dictionaries", () => {
+  // Imports all 126 real App/UI dictionaries; cold Windows loading can exceed the default 5s.
   test("are flat string maps in every locale", async () => {
     const modules = await Promise.all(
       DESKTOP_NATIVE_LOCALES.flatMap((locale) => [
@@ -31,5 +32,5 @@ describe("dictionaries", () => {
     )
 
     expect(nested).toEqual([])
-  })
+  }, 30_000)
 })

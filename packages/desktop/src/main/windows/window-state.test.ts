@@ -1,43 +1,112 @@
 import { describe, expect, test } from "bun:test"
-import { mkdtempSync, writeFileSync } from "node:fs"
-import { tmpdir } from "node:os"
+import { writeFileSync } from "node:fs"
 import path from "node:path"
 import { readWindowState, resolveWindowState } from "./window-state"
+import { tmpdir } from "../../../../core/test/fixture/tmpdir"
 
 const defaults = { width: 1280, height: 800 }
 
 const primary = { x: 0, y: 0, width: 1920, height: 1080 }
 
+const upper = { x: -102, y: -1152, width: 2752, height: 1152 }
+
 const displays = {
-  all: () => [primary, { x: 1920, y: 0, width: 2560, height: 1440 }],
+  all: () => [primary, { x: 1920, y: 0, width: 2560, height: 1440 }, upper],
   primary: () => primary,
   matching: () => primary,
 }
 
 describe("window state", () => {
-  test("keeps bounds that still fit on a display", () => {
-    const saved = { x: 2000, y: 100, width: 1000, height: 700, displayBounds: { x: 1920, y: 0, width: 2560, height: 1440 } }
+  test("keeps bounds that still fit on a display, including negative-coordinate monitors", () => {
+    const saved = {
+      x: 2000,
+      y: 100,
+      width: 1000,
+      height: 700,
+      displayBounds: { x: 1920, y: 0, width: 2560, height: 1440 },
+    }
+
     expect(resolveWindowState(saved, defaults, displays)).toEqual(saved)
+
+    const negative = { x: -50, y: -1000, width: 1280, height: 800, displayBounds: upper }
+    expect(resolveWindowState(negative, defaults, displays)).toEqual(negative)
+  })
+
+  test.each([
+    {
+      name: "it is above the primary and the normal bounds stayed on the primary",
+      all: displays.all(),
+      displayBounds: upper,
+      expected: { x: 634, y: -976, width: 1280, height: 800 },
+    },
+    {
+      // #58247: Electron reports a 1366x768 panel as 1388x781 DIP, shorter than the 800px default.
+      name: "it is shorter than the normal bounds",
+      all: [{ x: 0, y: 0, width: 1388, height: 781 }],
+      displayBounds: { x: 0, y: 0, width: 1388, height: 781 },
+      expected: { x: 54, y: 0, width: 1280, height: 781 },
+    },
+  ])("maximizes on the saved display when $name", (input) => {
+    const saved = { x: 0, y: 0, width: 1280, height: 800, displayBounds: input.displayBounds, isMaximized: true }
+
+    expect(resolveWindowState(saved, defaults, { ...displays, all: () => [...input.all] })).toEqual({
+      ...input.expected,
+      displayBounds: input.displayBounds,
+      isMaximized: true,
+    })
   })
 
   test("falls back to the default size on the primary display when the saved display is gone", () => {
-    const saved = { x: 5000, y: 100, width: 1000, height: 700, displayBounds: { x: 4480, y: 0, width: 1920, height: 1080 } }
+    const saved = {
+      x: 5000,
+      y: 100,
+      width: 1000,
+      height: 700,
+      displayBounds: { x: 4480, y: 0, width: 1920, height: 1080 },
+    }
+
     expect(resolveWindowState(saved, defaults, displays)).toEqual({ ...defaults, x: 0, y: 0, displayBounds: primary })
+
+    expect(resolveWindowState({ ...saved, isMaximized: true }, defaults, displays)).toEqual({
+      ...defaults,
+      x: 0,
+      y: 0,
+      displayBounds: primary,
+      isMaximized: true,
+    })
   })
 
   test("uses defaults without a position when nothing usable was saved", () => {
     expect(resolveWindowState(undefined, defaults, displays)).toEqual(defaults)
     expect(resolveWindowState({ width: 0, height: -1 }, defaults, displays)).toEqual(defaults)
-    expect(resolveWindowState("junk", defaults, displays)).toEqual(defaults)
+    expect(resolveWindowState({}, defaults, displays)).toEqual(defaults)
   })
 
   test("keeps a maximized flag even without bounds", () => {
     expect(resolveWindowState({ isMaximized: true }, defaults, displays)).toEqual({ ...defaults, isMaximized: true })
   })
 
-  test("reads the file electron-window-state wrote and ignores an unreadable one", () => {
-    const dir = mkdtempSync(path.join(tmpdir(), "opencode-window-state-"))
-    const file = path.join(dir, "window-state-a.json")
+  test.each([1, "false", { saved: true }])("ignores malformed flags individually while preserving other saved fields (%j)", async (invalid) => {
+    await using fixture = await tmpdir("window-state-flags-")
+    const file = path.join(fixture.path, "window-state.json")
+    const bounds = { x: 100, y: 100, width: 1000, height: 700, displayBounds: primary, extra: { preserved: true } }
+    writeFileSync(file, JSON.stringify({ ...bounds, isMaximized: invalid, isFullScreen: true }))
+    expect(resolveWindowState(readWindowState(file), defaults, displays)).toEqual({ ...bounds, isFullScreen: true })
+    writeFileSync(file, JSON.stringify({ ...bounds, isMaximized: false, isFullScreen: invalid }))
+    expect(resolveWindowState(readWindowState(file), defaults, displays)).toEqual({ ...bounds, isMaximized: false })
+    expect(resolveWindowState({ ...bounds, isMaximized: invalid, isFullScreen: true }, defaults, displays)).toEqual({
+      ...bounds, isFullScreen: true,
+    })
+    expect(resolveWindowState({ ...bounds, isMaximized: false, isFullScreen: invalid }, defaults, displays)).toEqual({
+      ...bounds, isMaximized: false,
+    })
+    expect(resolveWindowState({ isMaximized: invalid, isFullScreen: false }, defaults, displays)).toEqual({ ...defaults, isFullScreen: false })
+    expect(resolveWindowState({ isMaximized: false, isFullScreen: invalid }, defaults, displays)).toEqual({ ...defaults, isMaximized: false })
+  })
+
+  test("reads the file electron-window-state wrote and ignores an unreadable or non-object one", async () => {
+    await using fixture = await tmpdir("window-state-read-")
+    const file = path.join(fixture.path, "window-state-a.json")
     writeFileSync(
       file,
       '{"width":1280,"height":800,"x":0,"y":0,"displayBounds":{"x":0,"y":0,"width":3440,"height":1440},"isMaximized":false,"isFullScreen":false}',
@@ -51,8 +120,10 @@ describe("window state", () => {
       isMaximized: false,
       isFullScreen: false,
     })
+    writeFileSync(file, '"junk"')
+    expect(readWindowState(file)).toBeUndefined()
     writeFileSync(file, "{oops")
     expect(readWindowState(file)).toBeUndefined()
-    expect(readWindowState(path.join(dir, "missing.json"))).toBeUndefined()
+    expect(readWindowState(path.join(fixture.path, "missing.json"))).toBeUndefined()
   })
 })

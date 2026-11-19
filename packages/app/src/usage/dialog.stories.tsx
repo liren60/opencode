@@ -6,9 +6,11 @@ import { UsageDialogContent } from "./dialog"
 import type { CurrentModel } from "./limits"
 
 const resetsAt = Date.UTC(2026, 10, 1)
+
 const hour = 3_600_000
 
 const opus = { providerID: "opencode", modelID: "claude-opus-5", name: "Claude Opus 5" }
+
 const sonnet = { providerID: "opencode", modelID: "claude-sonnet-5", name: "Claude Sonnet 5" }
 
 const budget = (input: Partial<UsageLimitsBudget> & Pick<UsageLimitsBudget, "id">): UsageLimitsBudget => ({
@@ -30,19 +32,20 @@ const anthropic = (spent: number) =>
 
 const pool = (spent: number) => budget({ id: "pool", scope: "combined", shared: true, limit: 1_000, spent })
 
-const info = (budgets: UsageLimitsBudget[], go = false): UsageLimitsInfo => ({
-  workspace: { id: "wrk_1", name: "Acme", usageURL: "https://opencode.ai/wrk_1/activity/overview" },
-  ...(go
-    ? {
-        go: {
-          rolling: { percent: 42, limited: false, resetsAt: Date.now() + 3 * hour },
-          weekly: { percent: 18, limited: false, resetsAt: Date.now() + 100 * hour },
-          monthly: { percent: 7, limited: false, resetsAt: Date.now() + 500 * hour },
-        },
-      }
-    : {}),
-  budgets,
-})
+const info = (budgets: UsageLimitsBudget[], go = false): UsageLimitsInfo => {
+  const limits: UsageLimitsInfo = {
+    workspace: { id: "wrk_1", name: "Acme", usageURL: "https://opencode.ai/wrk_1/activity/overview" },
+    budgets,
+  }
+
+  if (go) limits.go = {
+    rolling: { percent: 42, limited: false, resetsAt: Date.now() + 3 * hour },
+    weekly: { percent: 18, limited: false, resetsAt: Date.now() + 100 * hour },
+    monthly: { percent: 7, limited: false, resetsAt: Date.now() + 500 * hour },
+  }
+
+  return limits
+}
 
 function UsageStory(props: { info: UsageLimitsInfo; model?: CurrentModel; credits?: boolean }) {
   const dialog = useDialog()

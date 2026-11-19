@@ -4,7 +4,10 @@ import { createStore } from "solid-js/store"
 import type { State } from "./types"
 import type { QueryOptionsApi } from "../sync"
 import { ServerScope } from "@/runtime/server/scope"
-import type { Data } from "@opencode/client/solid"
+import { createData } from "@opencode/client/solid"
+import { OpenCode } from "@opencode/client/promise"
+import { loadGlobalConfigQuery, loadPathQuery } from "./bootstrap"
+import { queryOptions } from "@tanstack/solid-query"
 import type { persisted } from "@/runtime/persistence/storage"
 
 let createChildStoreManager: typeof import("./child-store").createChildStoreManager
@@ -19,42 +22,22 @@ const persist: typeof persisted = (_target, _schema, initial) => [
 
 const path = { state: "", config: "", worktree: "", directory: "", home: "" }
 
-const data = {
-  location: {
-    info: () => undefined,
-    agent: { list: () => undefined },
-    command: { list: () => undefined },
-    reference: { list: () => undefined },
-    provider: { list: () => undefined },
-    model: { list: () => undefined, default: () => undefined },
-    mcp: {
-      server: { list: () => undefined },
-      resource: { list: () => undefined },
-    },
-    vcs: { info: () => undefined },
-  },
-} as unknown as Data
+const api = OpenCode.make({
+  baseUrl: "http://fixture.invalid",
+  fetch: Object.assign(async () => { throw new Error("Passive child must not fetch") }, { preconnect() {} }),
+})
 
-const queryOptionsApi = {
-  globalConfig: () => ({ queryKey: ["globalConfig"], queryFn: async () => ({}) }),
-  projects: () => ({ queryKey: ["projects"], queryFn: async () => [] }),
-  path: (directory: string | null) => ({
-    queryKey: [directory, "path"],
-    queryFn: async () => ({
-      state: "",
-      config: "",
-      worktree: "",
-      directory: directory ?? "",
-      home: "",
-    }),
-  }),
-  agents: (directory: string) => ({ queryKey: [directory, "agents"], queryFn: async () => [] }),
-  mcp: (directory: string) => ({ queryKey: [directory, "mcp"], queryFn: async () => ({}) }),
-  mcpResources: (directory: string) => ({ queryKey: [directory, "mcpResources"], queryFn: async () => ({}) }),
-  lsp: (directory: string) => ({ queryKey: [directory, "lsp"], queryFn: async () => [] }),
-  references: (directory: string) => ({ queryKey: [directory, "references"], queryFn: async () => [] }),
-  sessions: (directory: string) => ({ queryKey: [directory, "loadSessions"] as const }),
-} as unknown as QueryOptionsApi
+const queryOptionsApi: QueryOptionsApi = {
+  globalConfig: () => loadGlobalConfigQuery(ServerScope.local),
+  path: () => loadPathQuery(ServerScope.local, null, api.location),
+  lsp: (directory: string) => queryOptions({ queryKey: [ServerScope.local, directory, "lsp"] as const, queryFn: async () => [] }),
+}
+
+const state = (): State => ({
+  status: "loading", agent: [], command: [], reference: [], project: "", projectMeta: undefined,
+  provider_ready: false, provider: { all: new Map(), connected: [], default: {} }, config: {}, path,
+  mcp_ready: false, mcp: {}, mcp_resource: {}, lsp_ready: false, lsp: [], vcs: undefined,
+})
 
 function setup(input: { connected?: () => boolean } = {}) {
   const bootstraps: string[] = []
@@ -78,7 +61,7 @@ function setup(input: { connected?: () => boolean } = {}) {
       onDispose() {},
       translate: (key) => key,
       queryOptions: queryOptionsApi,
-      data,
+      data: createData({ api: () => api, directory: "", event: { on: () => () => {}, listen: () => () => {} } }),
       global: { path },
     })
 
@@ -123,11 +106,11 @@ describe("createChildStoreManager", () => {
 
     try {
       Array.from({ length: 30 }, (_, index) => `/pinned-${index}`).forEach((directory) => {
-        manager.children[directory] = createStore({} as State)
+        manager.children[directory] = createStore(state())
         manager.pin(directory)
       })
 
-      manager.children["/active"] = createStore({} as State)
+      manager.children["/active"] = createStore(state())
       manager.mark("/active")
 
       expect(manager.children["/active"]).toBeDefined()

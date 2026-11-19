@@ -40,6 +40,7 @@ test("voice reads cap each message at 400 characters and exclude non-conversatio
     { id: "msg_idle", type: "idle", time: { created: 6 }, outcome: "succeeded" },
     { id: "msg_short", type: "user", time: { created: 7 }, text: "A short question" },
   ]
+
   expect(messageExcerpts(messages)).toEqual([
     { id: "msg_user", role: "user", text: "u".repeat(400) },
     { id: "msg_synthetic", role: "synthetic", text: "s".repeat(400) },

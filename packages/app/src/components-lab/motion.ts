@@ -49,6 +49,7 @@ export function motionFields(motion: StoryMotion): { [key: string]: Field } {
 export function motionScopes(motion: StoryMotion) {
   const springs = motion.knobs.flatMap((item) => (item.kind === "spring" ? [item] : []))
   const scopes = [...new Set(springs.map(group))]
+
   const groups = [
     ...motion.knobs.map(group),
     ...motion.actions.map((item) => item.subsection ?? item.group),

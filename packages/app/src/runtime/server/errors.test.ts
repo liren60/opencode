@@ -1,7 +1,10 @@
 import { describe, expect, test } from "bun:test"
-import type { FileNotFoundError, SessionNotFoundError } from "@opencode/client/promise"
+import { Data } from "effect"
+import type { FileNotFoundError, ProviderNotFoundError, SessionNotFoundError } from "@opencode/client/promise"
 import type { ConfigInvalidError, ProviderModelNotFoundError } from "./errors"
 import { formatServerError, isSessionNotFoundError, parseReadableConfigInvalidError } from "./errors"
+
+const serverErrors = Data.taggedEnum<FileNotFoundError | ProviderNotFoundError | SessionNotFoundError>()
 
 function fill(text: string, vars?: Record<string, string | number>) {
   if (!vars) return text
@@ -16,18 +19,20 @@ function fill(text: string, vars?: Record<string, string | number>) {
 }
 
 function useLanguageMock() {
-  const dict: Record<string, string> = {
-    "error.chain.unknown": "Erro desconhecido",
-    "error.chain.configInvalid": "Arquivo de config em {{path}} invalido",
-    "error.chain.configInvalidWithMessage": "Arquivo de config em {{path}} invalido: {{message}}",
-    "error.chain.modelNotFound": "Modelo nao encontrado: {{provider}}/{{model}}",
-    "error.chain.didYouMean": "Voce quis dizer: {{suggestions}}",
-    "error.chain.checkConfig": "Revise provider/model no config",
-  }
+  const dict = new Map(
+    Object.entries({
+      "error.chain.unknown": "Erro desconhecido",
+      "error.chain.configInvalid": "Arquivo de config em {{path}} invalido",
+      "error.chain.configInvalidWithMessage": "Arquivo de config em {{path}} invalido: {{message}}",
+      "error.chain.modelNotFound": "Modelo nao encontrado: {{provider}}/{{model}}",
+      "error.chain.didYouMean": "Voce quis dizer: {{suggestions}}",
+      "error.chain.checkConfig": "Revise provider/model no config",
+    }),
+  )
 
   return {
     t(key: string, vars?: Record<string, string | number>) {
-      const text = dict[key]
+      const text = dict.get(key)
 
       if (!text) return key
 
@@ -81,11 +86,10 @@ describe("formatServerError", () => {
     },
     {
       name: "typed server error message",
-      error: {
-        _tag: "FileNotFoundError",
+      error: serverErrors.FileNotFoundError({
         path: "deleted.txt",
         message: "File not found: deleted.txt",
-      } satisfies FileNotFoundError,
+      }),
       expected: "File not found: deleted.txt",
     },
     { name: "string error", error: "Failed to connect to server", expected: "Failed to connect to server" },
@@ -94,6 +98,32 @@ describe("formatServerError", () => {
       name: "unknown error object",
       error: { name: "ServerTimeoutError", data: { seconds: 30 } },
       expected: "Erro desconhecido",
+    },
+    {
+      name: "malformed config message",
+      error: { name: "ConfigInvalidError", data: { message: 12 } },
+      expected: "Erro desconhecido",
+    },
+    {
+      name: "malformed config issue path with a readable message",
+      error: {
+        name: "ConfigInvalidError",
+        message: "Readable failure",
+        data: { issues: [{ message: "Invalid", path: "settings" }] },
+      },
+      expected: "Readable failure",
+    },
+    {
+      name: "model error missing provider identity",
+      error: { name: "ProviderModelNotFoundError", data: { modelID: "gpt" } },
+      expected: "Erro desconhecido",
+    },
+    {
+      name: "malformed model suggestions wrapped by the SDK",
+      error: new Error("Request failed", {
+        cause: { body: { name: "ProviderModelNotFoundError", data: { providerID: "x", modelID: "y", suggestions: [12] } } },
+      }),
+      expected: "Request failed",
     },
     {
       name: "provider model error",
@@ -123,14 +153,19 @@ describe("formatServerError", () => {
   ])("formats a $name", ({ error, expected }) => {
     expect(formatServerError(error, language.t)).toBe(expected)
   })
+
+  test("keeps the caller's fallback when a structured error cannot be decoded", () => {
+    expect(formatServerError({ name: "ProviderModelNotFoundError", data: {} }, language.t, "Request unavailable")).toBe(
+      "Request unavailable",
+    )
+  })
 })
 
 describe("isSessionNotFoundError", () => {
-  const body = {
-    _tag: "SessionNotFoundError",
+  const body = serverErrors.SessionNotFoundError({
     sessionID: "ses_missing",
     message: "Session not found",
-  } satisfies SessionNotFoundError
+  })
 
   test("matches an SDK-wrapped or direct structured error for the requested session", () => {
     expect(isSessionNotFoundError(new Error(body.message, { cause: { body, status: 404 } }), body.sessionID)).toBe(true)
@@ -142,7 +177,10 @@ describe("isSessionNotFoundError", () => {
     expect(
       isSessionNotFoundError(
         new Error("Provider not found", {
-          cause: { body: { _tag: "ProviderNotFoundError", providerID: "missing" }, status: 404 },
+          cause: {
+            body: serverErrors.ProviderNotFoundError({ providerID: "missing", message: "Provider not found" }),
+            status: 404,
+          },
         }),
         "ses_tab",
       ),

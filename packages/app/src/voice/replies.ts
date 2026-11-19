@@ -4,6 +4,8 @@ export type SentPrompt = { sessionID: string; promptID: string; title: string; i
 
 export type VoiceReply = SentPrompt & { messageID: string; text: string }
 
+type ReplyState = { prompt?: SentPrompt; reply?: VoiceReply }
+
 export class ReplyWatch {
   private prompts = new Map<string, SentPrompt>()
   private delivered = new Set<string>()
@@ -18,8 +20,7 @@ export class ReplyWatch {
 
   pending(sessionID: string) {
     return [...this.prompts.values()]
-      .filter((prompt) => prompt.sessionID === sessionID)
-      .map((prompt) => prompt.promptID)
+      .flatMap((prompt) => (prompt.sessionID === sessionID ? [prompt.promptID] : []))
   }
 
   heard(sessionID: string, messageIDs: string[]) {
@@ -30,7 +31,7 @@ export class ReplyWatch {
   // settles a reply. A later user's request must never donate its answer to an
   // earlier voice prompt, even when both were queued before either ran.
   reconcile(sessionID: string, messages: readonly SessionMessageInfo[]): VoiceReply[] {
-    const state: { prompt?: SentPrompt; reply?: VoiceReply } = {}
+    const state: ReplyState = {}
     const replies: VoiceReply[] = []
     messages.forEach((message) => {
       if (message.type === "user" || message.type === "synthetic") {

@@ -55,6 +55,7 @@ export function observeReducedMotion(listener: () => void): () => void {
       attribute.observe(document.documentElement, { attributes: true, attributeFilter: ["data-motion"] })
     }
   }
+
   listeners.add(listener)
 
   return () => {

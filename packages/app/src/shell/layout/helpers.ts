@@ -67,9 +67,10 @@ export function projectForSession<T extends { id?: string; worktree: string; san
 
 export const errorMessage = (err: unknown, fallback: string) => {
   if (err && typeof err === "object" && "data" in err) {
-    const data = (err as { data?: { message?: string } }).data
+    const data = err.data
 
-    if (data?.message) return data.message
+    if (data && typeof data === "object" && "message" in data && typeof data.message === "string" && data.message)
+      return data.message
   }
 
   if (err instanceof Error) return err.message

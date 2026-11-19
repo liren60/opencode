@@ -153,6 +153,7 @@ describe("createSessionBackground", () => {
         agent: "explore",
         started: 6,
       }
+
       expect(background.subagents()).toEqual([pending])
       setStore("messages", 0, "content", 0, "state", "metadata", { sessionID: "child" })
       expect(background.subagents()).toEqual([{ ...pending, id: "child", sessionID: "child" }])

@@ -53,6 +53,8 @@ bun script/deploy-renicode.ts --check --generation
 
 `--check` 包含构建和部署写入，不是 dry-run。`--generation` 只暂存不可变程序包和候选清单，不复制 profile、不写自动 pending、不启动 guardian。旧版继续使用原程序/原 profile；不要直接运行新版 EXE，它要求 migration-aware launcher 提供已准备的代际。
 
+Windows 桌面以 `serve --service --detach` 启动后台：短命 CLI 中转到独立后台后退出，避免后台继承 Electron 的 GPU/Mojo 端点而阻塞桌面关闭。`--detach` 必须与 `--service` 配合，不能与 `--stdio` 配合；保留显式 hostname/port/CORS、认证与服务注册作用域，不写入网络配置、不关闭共享后台。此参数不等于 A/B 激活或实时 profile 迁移授权。
+
 暂存输出的 `stagedGeneration` 是代际 ID。**只有用户正常退出桌面、guardian 已退出且旧后台已正常停止后**，才显式执行：
 
 ```powershell
@@ -63,5 +65,7 @@ bun packages/desktop/script/renicode-launcher.ts launch
 ```
 
 准备阶段拒绝活后台、执行恢复 claim、已有目标、链接或损坏数据库；完整复制 profile 到 `generations/<id>/profile`，验证文件哈希和 SQLite 完整性/外键，过滤目标的旧 service lease 与路径 overrides，原 profile 不修改。新版使用独立配置、CLI 暂存及服务端口。复制中断的 `.preparing` 目录保留，不自动覆盖或删除。
+
+若已经审阅并明确批准不迁移可重建的Bun下载缓存，可在 `prepare-generation` 加 `--skip-bun-cache`。它只排除 `profile/cache/.bun/install/cache`，不删除原缓存、不跟随其中链接；其他路径仍完整复制并执行全部链接/数据库/哈希门禁，清单记录排除路径。新版之后可能重新下载依赖；此参数不适用于launch/deploy，也不代表任意缓存或插件配置都可省略。
 
 失败回退绑定旧程序和旧 profile；后续手动回退前也须正常退出新版桌面/guardian、正常停止新版后台。升级后新增聊天/设置保留在新版代际，旧 UI 不自动显示这些新增数据；跨代际合并不在本流程范围。原安装、程序历史与任一 profile 均不自动删除。正常退出门禁未满足时，保持“仅程序已暂存”，不能声称升级已激活。

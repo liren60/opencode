@@ -22,6 +22,7 @@ import sessionInboxMigration from "@opencode/core/database/migration/20260812181
 import sessionViewedStateMigration from "@opencode/core/database/migration/20260819222447_session_viewed_state"
 import azureCliCredentialMigration from "@opencode/core/database/migration/20261007190000_azure_cli_external_credential"
 import dropSessionPendingMigration from "@opencode/core/database/migration/20261025154125_drop_session_pending"
+import jobMigration from "@opencode/core/database/migration/20261030054400_job"
 import { Global } from "@opencode/util/global"
 
 const run = <A, E>(
@@ -58,6 +59,7 @@ const parkedClient = (arrived: Deferred.Deferred<void>, gate: Deferred.Deferred<
           executeRaw: (query, params) => park(query, connection.executeRaw(query, params)),
         }),
         compiler: Statement.makeCompilerSqlite(),
+        driver: client.driver,
         spanAttributes: [],
       })
     }),
@@ -227,6 +229,43 @@ describe("DatabaseMigration", () => {
         yield* DatabaseMigration.applyOnly(db, [dropSessionPendingMigration])
 
         expect(yield* db.all(sql`SELECT name FROM sqlite_master WHERE name LIKE 'session_pending%'`)).toEqual([])
+      }),
+    )
+  })
+
+  test.each([
+    { kind: "shell", sessionID: "ses_parent", command: "build" },
+    { kind: "agent", parentSessionID: "ses_parent", childSessionID: "ses_child", description: "Review" },
+  ])("moves legacy $kind background jobs into durable rows without deleting unrelated KV data", async (recovery) => {
+    await run(
+      Effect.gen(function* () {
+        const db = yield* makeDb
+        yield* db.run(sql`CREATE TABLE kv (key text PRIMARY KEY, value text, time_created integer, time_updated integer)`)
+        const value = JSON.stringify({ notificationID: "notification", id: "job", status: "completed", output: "done", recovery })
+        yield* db.run(sql`INSERT INTO kv VALUES ('job.background/job', ${value}, 100, 200)`)
+        yield* db.run(sql`INSERT INTO kv VALUES ('preferences', '{"theme":"dark"}', 1, 2)`)
+
+        yield* DatabaseMigration.applyOnly(db, [jobMigration])
+        yield* DatabaseMigration.applyOnly(db, [jobMigration])
+
+        expect(yield* db.all(sql`SELECT * FROM job`)).toEqual([{
+          notification_id: "notification",
+          id: "job",
+          session_id: "ses_parent",
+          child_session_id: "childSessionID" in recovery ? recovery.childSessionID : null,
+          kind: recovery.kind,
+          title: "command" in recovery ? recovery.command : recovery.description,
+          status: "completed",
+          output: "done",
+          error: null,
+          recovery: JSON.stringify(recovery),
+          time_created: 100,
+          time_updated: 200,
+        }])
+        expect(yield* db.all(sql`SELECT * FROM kv`)).toEqual([{
+          key: "preferences", value: '{"theme":"dark"}', time_created: 1, time_updated: 2,
+        }])
+        expect(yield* db.all(sql`SELECT id FROM migration`)).toEqual([{ id: jobMigration.id }])
       }),
     )
   })

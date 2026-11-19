@@ -102,8 +102,7 @@ function DetailsPopover(
         />
       </Tooltip>
       <Popover.Portal>
-        {/* Kobalte positions the content relatively, so it places the Extensions flyout. Only the inner box scrolls,
-            so the flyout beside it is not clipped. */}
+        {/* Kobalte positions the content relatively, so it places the Extensions flyout. */}
         <Popover.Content
           class="session-summary-popover z-50 border-0 bg-transparent outline-none"
           aria-label={ctx.t("title")}

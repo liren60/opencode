@@ -68,8 +68,11 @@ export type CssVarRef = `var(--${string})`
 
 export type ColorValue = HexColor | CssVarRef
 
+/** Generated alpha colors; theme input overrides retain the ColorValue contract. */
+export type RgbaColor = `rgba(${string})`
+
 export type V2ColorValue = HexColor | CssVarRef | string
 
-export type ResolvedTheme = Record<ThemeToken, ColorValue>
+export type ResolvedTheme = Record<ThemeToken, ColorValue | RgbaColor>
 
 export type ResolvedV2Theme = Record<string, V2ColorValue>

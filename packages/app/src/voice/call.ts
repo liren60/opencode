@@ -28,6 +28,16 @@ type Delegation = {
   responseID?: string
 }
 
+type VoiceCallState = {
+  transport?: VoiceTransport
+  viewing: SessionInfo
+  muted: boolean
+  ended: boolean
+  watching: boolean
+  ready: boolean
+  joining: boolean
+}
+
 export function createVoiceCall(input: {
   ctx: ServerCtx
   session: SessionInfo
@@ -51,15 +61,7 @@ export function createVoiceCall(input: {
     tabs: input.tabs,
   })
 
-  const state: {
-    transport?: VoiceTransport
-    viewing: SessionInfo
-    muted: boolean
-    ended: boolean
-    watching: boolean
-    ready: boolean
-    joining: boolean
-  } = {
+  const state: VoiceCallState = {
     viewing: input.session,
     muted: false,
     ended: false,

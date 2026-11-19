@@ -472,7 +472,7 @@ export function createDirectorySearch(args: {
     const input = scoped(value)
     const location = args.location()
 
-    if (!input || !location) return [] as string[]
+    if (!input || !location) return []
     const raw = normalizePickerDrive(value)
     const pathInput = raw.startsWith("~") || !!pickerRoot(raw) || raw.includes("/")
     const query = normalizePickerDrive(input.path)

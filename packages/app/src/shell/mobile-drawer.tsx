@@ -22,7 +22,18 @@ export function MobileDrawer(
       side="bottom"
       initialFocusEl={props.initialFocus?.()}
       finalFocusEl={props.returnFocus?.()}
-      onFinalFocus={props.onFinalFocus}
+      onFinalFocus={(event) => {
+        props.onFinalFocus?.(event)
+
+        if (event.defaultPrevented) return
+
+        // Closing finishes after the slide-out. Do not steal focus from a field the user entered meanwhile.
+        const active = document.activeElement
+
+        if (active && active !== document.body && !active.closest('[data-slot="mobile-drawer-content"]')) {
+          event.preventDefault()
+        }
+      }}
       closeOnOutsideFocus={props.closeOnOutsideFocus}
     >
       {props.children}

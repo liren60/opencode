@@ -15,6 +15,7 @@ import microsoftOffice from "./microsoft-office"
 import sources from "./sources"
 import projectCenter from "./project-center"
 import projectNavigation from "./project-navigation"
+import goal from "./goal"
 
 /** Built-in plugins with their main entries, by id. Lists every built-in so their ids stay reserved. */
 export const builtins = compose({
@@ -34,4 +35,5 @@ export const builtins = compose({
   sources,
   "project-center": { ...projectCenter, mainEntry: () => import("./project-center/main") },
   "project-navigation": projectNavigation,
+  goal,
 })

@@ -66,6 +66,7 @@ const connect = Effect.fn("BackgroundService.connect")(function* (mode: "initial
         ...cli.command,
         "serve",
         "--service",
+        ...(process.platform === "win32" ? ["--detach"] : []),
         ...(RENICODE ? ["--hostname", "127.0.0.1", "--port", process.env.RENICODE_SERVER_PORT ?? "29123"] : []),
         ...(isolated ? ["--hostname", "0.0.0.0", "--port", String(0x0c0c)] : []),
       ],

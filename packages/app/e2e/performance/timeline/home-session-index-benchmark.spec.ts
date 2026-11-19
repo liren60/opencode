@@ -150,7 +150,7 @@ benchmark.describe("performance: home session index", () => {
 
         const pushed = await page.evaluate(
           ({ id, title, event, server }) => {
-            const host = window as ProbeWindow
+            const host: ProbeWindow = window
             const stream = host.__mockServerStreams?.[server]
 
             if (!host.__homeIndexProbe || !stream) throw new Error("Missing Home index probe")
@@ -174,7 +174,11 @@ benchmark.describe("performance: home session index", () => {
 
         await expect(titleLocator).toHaveText(title)
 
-        const seen = await page.evaluate(({ title }) => (window as ProbeWindow).__homeIndexProbe?.titles[title], {
+        const seen = await page.evaluate(({ title }) => {
+          const host: ProbeWindow = window
+
+          return host.__homeIndexProbe?.titles[title]
+        }, {
           title,
         })
 
@@ -241,7 +245,7 @@ async function setup(page: Page, fixture: HomeIndexFixture) {
   )
   await page.addInitScript(
     ({ expected }) => {
-      const host = window as ProbeWindow
+      const host: ProbeWindow = window
       const probe: Probe = { expected, pending: {}, titles: {} }
       host.__homeIndexProbe = probe
 
@@ -306,7 +310,7 @@ async function setup(page: Page, fixture: HomeIndexFixture) {
 
 async function readProbe(page: Page) {
   const probe = await page.evaluate(() => {
-    const host = window as ProbeWindow
+    const host: ProbeWindow = window
 
     if (!host.__homeIndexProbe) throw new Error("Missing Home index probe")
 
@@ -331,7 +335,7 @@ async function readProbe(page: Page) {
 async function performanceMetrics(cdp: CDPSession) {
   const result = await cdp.send("Performance.getMetrics")
 
-  return Object.fromEntries(result.metrics.map((metric) => [metric.name, metric.value])) as Record<string, number>
+  return Object.fromEntries(result.metrics.map((metric) => [metric.name, metric.value]))
 }
 
 async function retainedHeap(cdp: CDPSession) {

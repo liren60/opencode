@@ -10,10 +10,15 @@ let shared: Audio | undefined
 /** Returns a running audio graph, or nothing when the browser would block or has not been interacted with. */
 function audio() {
   if (typeof AudioContext === "undefined" || document.hidden) return
+
   if (!navigator.userActivation?.hasBeenActive) return
+
   if (!shared) shared = createAudio()
+
   if (shared.context.state === "suspended") void shared.context.resume()
+
   if (shared.context.state !== "running") return
+
   return shared
 }
 
@@ -37,25 +42,32 @@ function createAudio(): Audio {
   wet.connect(master)
   const noise = context.createBuffer(1, context.sampleRate, context.sampleRate)
   noise.getChannelData(0).forEach((_, i, data) => (data[i] = Math.random() * 2 - 1))
+
   return { context, bus, noise, recent: [] }
 }
 
 function impulse(context: AudioContext, seconds: number, decay: number) {
   const length = Math.floor(context.sampleRate * seconds)
   const buffer = context.createBuffer(2, length, context.sampleRate)
+
   for (let channel = 0; channel < 2; channel++) {
     const data = buffer.getChannelData(channel)
+
     for (let i = 0; i < length; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay)
   }
+
   return buffer
 }
 
 // Caps bursts of collision sounds so a crumble stays a patter rather than a roar.
 function allow(a: Audio) {
   const now = performance.now()
+
   while (a.recent.length && now - a.recent[0] > 80) a.recent.shift()
+
   if (a.recent.length >= 5) return false
   a.recent.push(now)
+
   return true
 }
 
@@ -80,6 +92,7 @@ function pebble(
   pan.pan.value = Math.max(-0.9, Math.min(0.9, input.pan))
   source.connect(band).connect(env).connect(pan).connect(a.bus)
   source.start(at, Math.random() * 0.8, input.decay + 0.02)
+
   if (!input.thud) return
   const body = c.createOscillator()
   body.frequency.setValueAtTime(input.thud * 1.6, at)
@@ -95,12 +108,14 @@ function pebble(
 
 const note = (step: number) =>
   440 * Math.pow(2, (74 + 12 * Math.floor(step / 5) + PENTATONIC[((step % 5) + 5) % 5] - 69) / 12)
+
 const panOf = (x: number, width: number) => (width ? (x / width) * 1.6 - 0.8 : 0)
 
 export const PinSound = {
   /** The wordmark rising in: a gritty stone slide sweeping across with pebbles settling under it. */
   sweep(input: { duration: number; columns: number; reverse?: boolean }) {
     const a = audio()
+
     if (!a) return
     const c = a.context
     const at = c.currentTime + 0.02
@@ -130,6 +145,7 @@ export const PinSound = {
     source.stop(end + 0.15)
 
     const clicks = 22
+
     for (let i = 0; i < clicks; i++) {
       const k = (i + Math.random() * 0.6) / clicks
       pebble(a, at + k * (input.duration - 0.1) + 0.06, {
@@ -145,6 +161,7 @@ export const PinSound = {
   /** A click that knocks pins out: one solid stone clack. */
   knock(x: number, width: number) {
     const a = audio()
+
     if (!a) return
     pebble(a, a.context.currentTime, { freq: 1100, q: 2.2, gain: 0.14, decay: 0.05, pan: panOf(x, width), thud: 95 })
   },
@@ -152,6 +169,7 @@ export const PinSound = {
   /** The brick breaker ball smashing pins: a clack whose ring climbs the scale with each hit before the paddle. */
   brick(x: number, width: number, combo: number) {
     const a = audio()
+
     if (!a) return
     const at = a.context.currentTime
     pebble(a, at, { freq: 1300, q: 2, gain: 0.1, decay: 0.04, pan: panOf(x, width), thud: 110 })
@@ -161,6 +179,7 @@ export const PinSound = {
   /** The brick breaker ball landing on the paddle: a soft, low knock. */
   paddle(x: number, width: number) {
     const a = audio()
+
     if (!a) return
     pebble(a, a.context.currentTime, { freq: 520, q: 1.4, gain: 0.12, decay: 0.05, pan: panOf(x, width), thud: 72 })
   },
@@ -168,6 +187,7 @@ export const PinSound = {
   /** A loose pin bouncing off the composer or the floor. */
   bounce(x: number, width: number, speed: number) {
     const a = audio()
+
     if (!a || !allow(a)) return
     pebble(a, a.context.currentTime, {
       freq: 2200 + Math.random() * 1400,
@@ -181,6 +201,7 @@ export const PinSound = {
   /** A pin seating back into its socket; pitch rises across the wordmark so the return reads as a cascade. */
   slot(column: number, columns: number, x: number, width: number) {
     const a = audio()
+
     if (!a || !allow(a)) return
     pebble(a, a.context.currentTime, {
       freq: note(Math.floor((column / columns) * 10)),

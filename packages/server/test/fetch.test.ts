@@ -426,7 +426,7 @@ it.live("returns 404 when a previously readable file is deleted", () =>
 it.live("cancels a stale OpenAI OAuth callback server before falling back", () =>
   Effect.gen(function* () {
     const requests = yield* occupy(1455, true)
-    const handler = yield* ServerFetch.make(options)
+    const handler = yield* ServerFetch.make({ ...options, models: { fetch: false, snapshot: false } })
     const response = yield* connectOpenAI(handler)
 
     expect(response.status).toBe(200)
@@ -439,7 +439,7 @@ it.live("cancels a stale OpenAI OAuth callback server before falling back", () =
 it.live("falls back to port 1457 when OpenAI OAuth port 1455 remains busy", () =>
   Effect.gen(function* () {
     const requests = yield* occupy(1455)
-    const handler = yield* ServerFetch.make(options)
+    const handler = yield* ServerFetch.make({ ...options, models: { fetch: false, snapshot: false } })
     const response = yield* connectOpenAI(handler)
 
     expect(response.status).toBe(200)
@@ -453,9 +453,18 @@ it.live(
   "explains how to recover when both OpenAI OAuth callback ports are busy",
   () =>
     Effect.gen(function* () {
+      const warnings: Error[] = []
+      const onWarning = (warning: Error) => {
+        if (warning.name === "MaxListenersExceededWarning" && warning.message.includes("listening listeners"))
+          warnings.push(warning)
+      }
+      yield* Effect.acquireRelease(
+        Effect.sync(() => process.on("warning", onWarning)),
+        () => Effect.sync(() => process.off("warning", onWarning)),
+      )
       yield* occupy(1455)
       yield* occupy(1457)
-      const handler = yield* ServerFetch.make(options)
+      const handler = yield* ServerFetch.make({ ...options, models: { fetch: false, snapshot: false } })
       const response = yield* connectOpenAI(handler)
 
       expect(response.status).toBe(400)
@@ -465,6 +474,7 @@ it.live(
           "OpenAI browser login needs local port 1455 or 1457, but both are already in use. Stop the processes using those ports or choose Codex device code (legacy), then try again.",
         kind: "integration_authorization",
       })
+      expect(warnings.map((warning) => warning.message)).toEqual([])
     }),
   // Real retries wait 18 * 200 ms; startup and scoped cleanup also count toward the deadline.
   { timeout: 10_000 },
@@ -522,6 +532,7 @@ it.live("routes pending requests through the Session's instance", () =>
     const config = yield* Effect.acquireDisposable(Effect.promise(() => tmpdir("opencode-pending-read-")))
     const handler = yield* ServerFetch.make({
       ...options,
+      models: { fetch: false, snapshot: false },
       config: {
         directory: config.path,
         project: false,

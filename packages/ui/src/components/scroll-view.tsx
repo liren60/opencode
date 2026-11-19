@@ -172,9 +172,19 @@ export function ScrollView(props: ScrollViewProps) {
   const thumbHover = () => local.thumbHoverTarget
   const hoverRoot = () => !local.thumbHoverTarget && !local.thumbContainer
 
-  const [state, setState] = createStore({
+  const [state, setState] = createStore<{
+    isHovered: boolean
+    dragging: "vertical" | "horizontal" | undefined
+    isScrolling: boolean
+    verticalThumbSize: number
+    verticalThumbStart: number
+    showVerticalThumb: boolean
+    horizontalThumbSize: number
+    horizontalThumbStart: number
+    showHorizontalThumb: boolean
+  }>({
     isHovered: false,
-    dragging: undefined as "vertical" | "horizontal" | undefined,
+    dragging: undefined,
     isScrolling: false,
     verticalThumbSize: 0,
     verticalThumbStart: 0,
@@ -266,7 +276,7 @@ export function ScrollView(props: ScrollViewProps) {
     // appears later), after layout. Measuring here as well would force a synchronous layout per
     // ScrollView while the page is still rendering.
     createResizeObserver(
-      () => [viewportRef, viewportRef.firstElementChild, thumbMount()].filter(Boolean) as HTMLElement[],
+      () => [viewportRef, viewportRef.firstElementChild, thumbMount()].filter((element): element is Element => element != null),
       updateThumb,
     )
   })
@@ -485,7 +495,7 @@ export function ScrollView(props: ScrollViewProps) {
           updateThumb()
           markScrolling()
 
-          if (typeof events.onScroll === "function") events.onScroll(e as any)
+          if (typeof events.onScroll === "function") events.onScroll(e)
         }}
         // Passive so the compositor never waits on the main thread to scroll; onWheel cannot cancel.
         on:wheel={{
@@ -494,24 +504,24 @@ export function ScrollView(props: ScrollViewProps) {
             markScrolling()
             const handler = events.onWheel
 
-            if (typeof handler === "function") handler(e as any)
+            if (typeof handler === "function") handler(e)
 
-            if (Array.isArray(handler)) handler[0](handler[1], e as any)
+            if (Array.isArray(handler)) handler[0](handler[1], e)
           },
         }}
-        onTouchStart={events.onTouchStart as any}
-        onTouchMove={events.onTouchMove as any}
-        onTouchEnd={events.onTouchEnd as any}
-        onTouchCancel={events.onTouchCancel as any}
-        onPointerDown={events.onPointerDown as any}
-        onClick={events.onClick as any}
+        onTouchStart={events.onTouchStart}
+        onTouchMove={events.onTouchMove}
+        onTouchEnd={events.onTouchEnd}
+        onTouchCancel={events.onTouchCancel}
+        onPointerDown={events.onPointerDown}
+        onClick={events.onClick}
         tabIndex={0}
         role="region"
         aria-label={i18n.t("ui.scrollView.ariaLabel")}
         onKeyDown={(e) => {
           onKeyDown(e)
 
-          if (typeof events.onKeyDown === "function") events.onKeyDown(e as any)
+          if (typeof events.onKeyDown === "function") events.onKeyDown(e)
         }}
       >
         {local.children}

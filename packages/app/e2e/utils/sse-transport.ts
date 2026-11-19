@@ -52,7 +52,7 @@ type BrowserCommand<T> =
 
 // Keyed by server origin so every installed server keeps its own connections and commands.
 type BrowserTransport = Window & {
-  __testSseTransports?: Record<string, { command: (command: BrowserCommand<unknown>) => unknown }>
+  __testSseTransports?: Record<string, { command: (command: BrowserCommand<unknown>) => SseConnectionRecord[] | SseDeliveryAcknowledgement | SseDeliveryAcknowledgement[] | void }>
 }
 
 // `keepalive` (default true) writes an SSE comment every 15 s like the real server, so long scenarios do not trip the
@@ -96,7 +96,8 @@ export async function installSseTransport<T extends OpenCodeEvent = OpenCodeEven
 
       const marker = (label?: string) => {
         if (!label) return
-        const probe = (window as ProbeWindow).__visualStabilityProbe
+        const host: ProbeWindow = window
+        const probe = host.__visualStabilityProbe
 
         if (!probe) return
         probe.markers.push({ at: performance.now() - probe.startedAt, label })
@@ -116,14 +117,15 @@ export async function installSseTransport<T extends OpenCodeEvent = OpenCodeEven
         chunkCount: number,
         eventID?: string,
       ): SseDeliveryAcknowledgement => {
-        const acknowledgement = {
+        const acknowledgement: SseDeliveryAcknowledgement = {
           deliveryID: ++nextDeliveryID,
           connectionID: connection.id,
           bytes,
           chunkCount,
           deliveredAt: performance.now(),
-          ...(eventID === undefined ? {} : { eventID }),
         }
+
+        if (eventID !== undefined) acknowledgement.eventID = eventID
 
         acknowledgements.push(acknowledgement)
 
@@ -194,7 +196,7 @@ export async function installSseTransport<T extends OpenCodeEvent = OpenCodeEven
         return acknowledge(connection, encoded[0]!.bytes.byteLength, output.length, encoded[0]!.delivery.options?.id)
       }
 
-      const host = window as BrowserTransport
+      const host: BrowserTransport = window
       host.__testSseTransports = { ...host.__testSseTransports, [server]: { command } }
 
       const fetch = (input: RequestInfo | URL, init?: RequestInit) => {
@@ -205,18 +207,18 @@ export async function installSseTransport<T extends OpenCodeEvent = OpenCodeEven
 
         const id = ++nextConnectionID
 
-        const record = {
+        const record: SseConnectionRecord = {
           id,
           url: url.href,
-          path: url.pathname,
+          path: "/api/event",
           headers: Object.fromEntries(request.headers.entries()),
           openedAt: performance.now(),
-        } as Connection
+        }
 
         const stream = new ReadableStream<Uint8Array>({
           start(controller) {
-            record.controller = controller
-            connections.push(record)
+            const connection: Connection = Object.assign(record, { controller })
+            connections.push(connection)
 
             if (retry !== undefined) controller.enqueue(encoder.encode(`retry: ${retry}\n\n`))
             controller.enqueue(
@@ -268,7 +270,8 @@ export async function installSseTransport<T extends OpenCodeEvent = OpenCodeEven
   const command = <Result>(input: BrowserCommand<T>) =>
     page.evaluate(
       ({ server, input }) => {
-        const transport = (window as BrowserTransport).__testSseTransports?.[server]
+        const host: BrowserTransport = window
+        const transport = host.__testSseTransports?.[server]
 
         if (!transport) throw new Error(`SSE transport for ${server} was not installed before page load`)
 
@@ -282,7 +285,8 @@ export async function installSseTransport<T extends OpenCodeEvent = OpenCodeEven
     async waitForConnection(input = {}) {
       const connection = await page.waitForFunction(
         ({ server, after }) => {
-          const transport = (window as BrowserTransport).__testSseTransports?.[server]
+          const host: BrowserTransport = window
+          const transport = host.__testSseTransports?.[server]
           const connections = transport?.command({ type: "connections" }) as SseConnectionRecord[] | undefined
 
           return connections?.findLast((connection) => connection.id > after && connection.endedAt === undefined)

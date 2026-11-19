@@ -275,6 +275,7 @@ const NATURE: Definition[] = [
 
           return curve
         })
+
         const band = crests.findLastIndex((curve) => y + 0.5 >= curve)
 
         if (band < 0) {
@@ -327,6 +328,7 @@ const NATURE: Definition[] = [
           ...Array.from({ length: p.ribbons }, (_, k) => {
             const edge =
               p.base - k * 3 + p.amplitude * Math.sin(x * p.frequency + p.phase + k * 2.1 + t * 1.3)
+
             const above = edge - (y + 0.5)
 
             if (above < -0.5 || above > p.length) return 0
@@ -546,6 +548,7 @@ const CREATURES: Definition[] = [
 
       const eye = blink ? dark : p.glow
       const eyeY = y0 + 2
+
       const eyes = [
         () => {
           pixels.rect(x0 + 1, eyeY, 2, 2, eye)
@@ -572,6 +575,7 @@ const CREATURES: Definition[] = [
 
       eyes[p.eyes]()
       const mouthY = y0 + p.height - 2
+
       const mouths = [
         () => Array.from({ length: p.width - 4 }, (_, i) => i % 2 === 0 && pixels.set(x0 + 2 + i, mouthY, dark)),
         () => pixels.rect(x0 + 3, mouthY, p.width - 6, 1, dark),
@@ -584,6 +588,7 @@ const CREATURES: Definition[] = [
 
       mouths[p.mouth]()
       const tip = beep ? tint(p.glow, 0.5) : p.glow
+
       const antennas = [
         () => pixels.rect(x0 + 1, y0 - 1, p.width - 2, 1, dark),
         () => {
@@ -647,6 +652,7 @@ const CREATURES: Definition[] = [
       pixels.set(Math.round(8 - w * 0.55) + 1, top + 1, tint(p.body, 0.6))
       const eyeY = Math.round(base - h * 0.45)
       const ink = 0x1a1a24
+
       const faces = [
         () => {
           pixels.rect(5, eyeY, 1, 2, ink)
@@ -668,6 +674,7 @@ const CREATURES: Definition[] = [
       ]
 
       faces[p.eyes]()
+
       const mouths = [
         () => {
           pixels.set(7, eyeY + 2, ink)
@@ -686,6 +693,7 @@ const CREATURES: Definition[] = [
       ]
 
       mouths[p.mouth]()
+
       const hats = [
         () => undefined,
         () => {
@@ -762,6 +770,7 @@ const CREATURES: Definition[] = [
 
       const ink = 0x1a1626
       const ey = 5 + bob
+
       const eyes = [
         () => {
           pixels.rect(5, ey, 2, 3, ink)
@@ -785,6 +794,7 @@ const CREATURES: Definition[] = [
       ]
 
       eyes[p.eyes]()
+
       const mouths = [
         () => undefined,
         () => pixels.rect(7, ey + 4, 2, 2, ink),
@@ -858,6 +868,7 @@ const CREATURES: Definition[] = [
       })
 
       const eyeY = 9
+
       ;[5, 9].forEach((x) => {
         if (blink) return pixels.rect(x, eyeY + 1, 2, 1, shade(p.fur, 0.4))
         pixels.rect(x, eyeY, 2, 2, p.iris)
@@ -866,7 +877,9 @@ const CREATURES: Definition[] = [
       pixels.rect(7, 12, 2, 1, 0xf28fa3)
       pixels.set(7, 13, shade(coat(7, 13), 0.6))
       pixels.set(8, 13, shade(coat(8, 13), 0.6))
+
       const whisker = luma(p.ground) > 0.5 ? shade(p.ground, 0.55) : tint(p.ground, 0.55)
+
       ;[0, 1, 14, 15].forEach((x) => {
         if (!inHead(x, 12)) pixels.set(x, 12, whisker)
 
@@ -996,11 +1009,13 @@ const OBJECTS: Definition[] = [
       })
 
       const glint = Math.floor(t * 2.5) % 3
+
       const spots = [
         [5, 5],
         [10, 6],
         [6, 10],
       ]
+
       const [sx, sy] = spots[t > 0 ? glint : 0]
       pixels.set(sx, sy, 0xffffff)
       pixels.set(sx - 1, sy, tint(p.stone, 0.7))
@@ -1109,7 +1124,9 @@ const OBJECTS: Definition[] = [
       if (!p.chimney || p.roof === 1 || p.roof === 4) return
       const cx = x1 - 2
       pixels.rect(cx, roofTop, 1, Math.max(1, y0 - roofTop), shade(p.roofColor, 0.55))
+
       const puff = Math.floor(t * 3)
+
       ;[0, 1, 2].forEach((k) => pixels.set(cx + ((k + puff) % 2), roofTop - 1 - k - (t > 0 ? puff % 2 : 0), mix(sky[0], 0xffffff, 0.6 - k * 0.15)))
     },
   },
@@ -1362,6 +1379,7 @@ const EMBLEMS: Definition[] = [
           .flatMap((i) => xs.map((_, j) => [i, j]))
           .filter(([, j]) => !linked.includes(j))
           .toSorted(([i, j], [k, l]) => Math.hypot(xs[i] - xs[j], ys[i] - ys[j]) - Math.hypot(xs[k] - xs[l], ys[k] - ys[l]))[0]
+
         ctx.beginPath()
         ctx.moveTo(xs[a] * px, ys[a] * px)
         ctx.lineTo(xs[b] * px, ys[b] * px)
@@ -1435,7 +1453,9 @@ const EMBLEMS: Definition[] = [
         const length = px * 0.46 * (p.points === 4 ? 1 : level)
         const width = px * (p.points === 4 ? 0.14 : 0.1) * (level < 1 ? 0.8 : 1)
         const tip = [Math.cos(angle) * length, Math.sin(angle) * length]
+
         const side = [Math.cos(angle + Math.PI / 2) * width, Math.sin(angle + Math.PI / 2) * width]
+
         ;[1, -1].forEach((s) => {
           ctx.beginPath()
           ctx.moveTo(0, 0)
@@ -1470,6 +1490,7 @@ const EMBLEMS: Definition[] = [
 
       const segments = Array.from({ length: branches }, () => {
         const a = pick(r, lattice)
+
         const options = lattice.filter((b) => {
           const dx = Math.abs((b % 3) - (a % 3))
           const dy = Math.abs(Math.floor(b / 3) - Math.floor(a / 3))

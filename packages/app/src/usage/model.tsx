@@ -28,10 +28,13 @@ export function createModelUsage(options: { refresh?: boolean } = {}) {
     if (options.refresh) data.location.usage.invalidate(location().ref)
     void data.location.usage.sync(location().ref).catch(() => undefined)
   })
+
   return (model: Parameters<typeof modelUsage>[1] & Parameters<typeof isFreeModel>[0]): ModelUsageLabel | undefined => {
     const info = data.location.usage.limits(location().ref)
     const usage = info && !isFreeModel(model) ? modelUsage(info, model) : undefined
+
     if (!usage) return
+
     return {
       label: usage.reached
         ? language.t("usage.budget.reached")

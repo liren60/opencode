@@ -10,9 +10,9 @@ export default {
 }
 
 function Panel(props: { pins: boolean }) {
-  const [state, setState] = createStore({
-    box: undefined as HTMLDivElement | undefined,
-    mode: (props.pins ? "open" : "flat") as "flat" | "open" | "closing",
+  const [state, setState] = createStore<{ box: HTMLDivElement | undefined; mode: "flat" | "open" | "closing" }>({
+    box: undefined,
+    mode: props.pins ? "open" : "flat",
   })
 
   return (

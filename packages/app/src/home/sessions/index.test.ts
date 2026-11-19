@@ -15,11 +15,13 @@ const session = (id: string, input: Partial<SessionInfo> = {}) =>
   ({
     id,
     projectID: "project",
+    cost: 0,
+    tokens: { input: 0, output: 0, reasoning: 0, cache: { read: 0, write: 0 } },
     title: id,
     time: { created: 1, updated: 1 },
     location: { directory: "/repo" },
     ...input,
-  }) as SessionInfo
+  }) satisfies SessionInfo
 
 // The loader anchors its recent window on the wall clock, so fixtures do too.
 const now = Date.now()

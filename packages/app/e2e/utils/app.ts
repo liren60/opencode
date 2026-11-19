@@ -91,35 +91,39 @@ export async function seed(page: Page, input: SeedInput) {
 }
 
 function storageEntries(input: SeedInput): [string, string, boolean][] {
-  const server = {
-    ...(input.usedProjects ? { usedProjectIDs: input.usedProjects } : {}),
-    ...(input.legacyProjects ? { projects: input.legacyProjects } : {}),
-    ...(input.servers
-      ? {
-          list: input.servers.map((item) =>
-            typeof item === "string" ? item : { type: "http", displayName: item.name, http: { url: item.url } },
-          ),
-        }
-      : {}),
+  const server = new Map<string, unknown>()
+
+  if (input.usedProjects) server.set("usedProjectIDs", input.usedProjects)
+
+  if (input.legacyProjects) server.set("projects", input.legacyProjects)
+
+  if (input.servers) server.set("list", input.servers.map((item) =>
+    typeof item === "string" ? item : { type: "http", displayName: item.name, http: { url: item.url } },
+  ))
+
+  const values = new Map<string, unknown>()
+
+  if (server.size) values.set("opencode.global.dat:server", Object.fromEntries(server))
+
+  if (input.tabs) values.set("opencode.window.browser.dat:tabs", input.tabs.map(tabEntry))
+
+  if (input.panes) values.set("opencode.window.browser.dat:tabs.panes", Object.fromEntries(
+    Object.entries(input.panes).map(([sessionID, pane]) => [tabKey(sessionID), pane]),
+  ))
+
+  if (input.settings) values.set("settings.v3", input.settings)
+
+  if (input.locale) values.set("opencode.global.dat:language", { locale: input.locale })
+
+  if (input.theme) {
+    values.set("opencode-theme-id", input.theme.id)
+    values.set("opencode-color-scheme", input.theme.scheme)
   }
 
-  const values: Record<string, unknown> = {
-    ...(Object.keys(server).length ? { "opencode.global.dat:server": server } : {}),
-    ...(input.tabs ? { "opencode.window.browser.dat:tabs": input.tabs.map(tabEntry) } : {}),
-    ...(input.panes
-      ? {
-          "opencode.window.browser.dat:tabs.panes": Object.fromEntries(
-            Object.entries(input.panes).map(([sessionID, pane]) => [tabKey(sessionID), pane]),
-          ),
-        }
-      : {}),
-    ...(input.settings ? { "settings.v3": input.settings } : {}),
-    ...(input.locale ? { "opencode.global.dat:language": { locale: input.locale } } : {}),
-    ...(input.theme ? { "opencode-theme-id": input.theme.id, "opencode-color-scheme": input.theme.scheme } : {}),
-    ...input.storage,
-  }
+  Object.entries({ ...input.storage }).forEach(([key, value]) => values.set(key, value))
 
-  return Object.entries(values).map(([key, value]) => [
+  // Restore ordinary object key ordering, including integer keys supplied by raw storage seeds.
+  return Object.entries(Object.fromEntries(values)).map(([key, value]) => [
     key,
     typeof value === "string" ? value : JSON.stringify(value),
     !!value && typeof value === "object" && !Array.isArray(value),
@@ -143,7 +147,7 @@ export function project(input: { id: string; directory: string; name?: string } 
     name: directory.split(/[\\/]/).at(-1),
     vcs: "git",
     time: { created: T0, updated: T0, active: T0 },
-    sandboxes: [] as string[],
+    sandboxes: new Array<string>(),
     ...rest,
   }
 }

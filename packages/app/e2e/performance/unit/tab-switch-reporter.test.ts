@@ -1,5 +1,5 @@
 import { expect, spyOn, test } from "bun:test"
-import type { FullConfig, Suite, TestCase, TestResult } from "@playwright/test/reporter"
+import type { FullConfig, FullProject, Suite, TestCase, TestResult } from "@playwright/test/reporter"
 import { mkdtemp, readFile, rm } from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
@@ -13,10 +13,7 @@ test("summarizes each scenario and saves complete records in the configured outp
   try {
     const reporter = new TabSwitchReporter()
 
-    const cases = Array.from(
-      { length: 23 },
-      (_, index) => ({ id: String(index), title: index < 20 ? "cold" : "warm" }) as TestCase,
-    )
+    const { config, suite, cases } = reporterFixture(output, 23, (index) => index < 20 ? "cold" : "warm")
 
     const records = cases.map((_, index) => {
       const first = index < 20 ? 20 - index : [40, 0, 20][index - 20]
@@ -32,17 +29,17 @@ test("summarizes each scenario and saves complete records in the configured outp
       })
     })
 
-    reporter.onBegin({ projects: [{ outputDir: output }] } as FullConfig, { allTests: () => cases } as Suite)
+    reporter.onBegin(config, suite)
     cases.forEach((item, index) => {
       const bytes = Buffer.from(`BENCHMARK ${records[index]}\r\n`)
       const split = bytes.indexOf(Buffer.from("\u03b1")) + 1
-      reporter.onTestEnd(item, {
+      reporter.onTestEnd(item, testResult({
         status: "passed",
         stdout:
           index === 0
             ? [bytes.subarray(0, split), bytes.subarray(split)]
             : ["other output\nBENCHMARK_PAGE {}\nBENCH", "MARK ", records[index], "\n"],
-      } as TestResult)
+      }))
     })
     await reporter.onEnd({ status: "passed", startTime: new Date(0), duration: 0 })
 
@@ -89,17 +86,14 @@ test("reports failures, missing records, and invalid metrics without discarding 
       { status: "skipped", raw: undefined },
     ] as const
 
-    const cases = Array.from(
-      { length: entries.length + 2 },
-      (_, index) => ({ id: String(index), title: index <= entries.length ? "cold" : "empty" }) as TestCase,
-    )
+    const { config, suite, cases } = reporterFixture(output, entries.length + 2, (index) => index <= entries.length ? "cold" : "empty")
 
-    reporter.onBegin({ projects: [{ outputDir: output }] } as FullConfig, { allTests: () => cases } as Suite)
+    reporter.onBegin(config, suite)
     entries.forEach((entry, index) => {
-      reporter.onTestEnd(cases[index], {
+      reporter.onTestEnd(cases[index], testResult({
         status: entry.status,
         stdout: entry.raw === undefined ? [] : [`BENCHMARK ${entry.raw}\n`],
-      } as TestResult)
+      }))
     })
     await reporter.onEnd({ status: "interrupted", startTime: new Date(0), duration: 0 })
 
@@ -121,3 +115,40 @@ test("reports failures, missing records, and invalid metrics without discarding 
     await rm(output, { recursive: true, force: true })
   }
 })
+
+function reporterFixture(output: string, count: number, title: (index: number) => string) {
+  const project: FullProject = {
+    name: "fixture", outputDir: output, testDir: output, snapshotDir: output, testMatch: [], testIgnore: [],
+    timeout: 5000, retries: 0, repeatEach: 1, metadata: {}, ignoreSnapshots: false, grep: /.*/, grepInvert: null,
+    dependencies: [], use: {},
+  }
+
+  const config: FullConfig = {
+    projects: [project], reporter: [], webServer: null, forbidOnly: false, fullyParallel: false,
+    globalSetup: null, globalTeardown: null, globalTimeout: 0, grep: /.*/, grepInvert: null, maxFailures: 0,
+    metadata: {}, preserveOutput: "always", quiet: false, reportSlowTests: null, rootDir: output, shard: null,
+    tags: [], updateSnapshots: "none", updateSourceMethod: "patch", version: "fixture", workers: 1,
+  }
+
+  const cases: TestCase[] = []
+
+  const suite: Suite = {
+    allTests: () => cases, entries: () => cases, project: () => project, titlePath: () => [],
+    suites: [], tests: cases, title: "root", type: "root",
+  }
+
+  cases.push(...Array.from({ length: count }, (_, index): TestCase => ({
+    id: String(index), title: title(index), type: "test", parent: suite, location: { file: "fixture", line: 1, column: 1 },
+    annotations: [], expectedStatus: "passed", repeatEachIndex: 0, results: [], retries: 0, tags: [], timeout: 5000,
+    ok: () => true, outcome: () => "expected", titlePath: () => [title(index)],
+  })))
+
+  return { config, suite, cases }
+}
+
+function testResult(input: Pick<TestResult, "status" | "stdout">): TestResult {
+  return {
+    annotations: [], attachments: [], duration: 0, errors: [], parallelIndex: 0, retry: 0,
+    startTime: new Date(0), stderr: [], steps: [], workerIndex: 0, ...input,
+  }
+}

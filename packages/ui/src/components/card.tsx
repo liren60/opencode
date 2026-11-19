@@ -39,7 +39,7 @@ function mix(style: ComponentProps<"div">["style"], value?: string) {
 
   if (typeof style === "string") return `${style};--card-accent:${value};`
 
-  return { ...(style as Record<string, string | number>), "--card-accent": value }
+  return { ...style, "--card-accent": value }
 }
 
 export function Card(props: CardProps) {
@@ -83,7 +83,7 @@ export function CardTitle(props: CardTitleProps) {
   const name = () => {
     if (split.icon === false || split.icon === null) return
 
-    if (typeof split.icon === "string") return split.icon
+    if (split.icon !== undefined) return split.icon
 
     return pick(split.variant ?? "normal")
   }

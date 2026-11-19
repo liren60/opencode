@@ -94,8 +94,8 @@ export function createNamespaceStorage(
     if (dirty.size > 0) {
       const batch = [...dirty].map((key) => ({ key, ...local.get(key)! }))
       dirty.clear()
-      const insert = Object.fromEntries(batch.filter((entry) => entry.value !== null).map((e) => [e.key, e.value!]))
-      const remove = batch.filter((entry) => entry.value === null).map((entry) => entry.key)
+      const insert = Object.fromEntries(batch.flatMap((entry) => (entry.value === null ? [] : [[entry.key, entry.value]])))
+      const remove = batch.flatMap((entry) => (entry.value === null ? [entry.key] : []))
       const current = (entry: { key: string; seq: number }) => local.get(entry.key)?.seq === entry.seq
 
       const request = driver

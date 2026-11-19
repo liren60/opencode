@@ -112,7 +112,7 @@ prepareHome()
 // The desktop deletes XDG_STATE_HOME on Windows, so isolation goes through the home directory.
 // OPENCODE_* and OTEL_* from the developer's shell would otherwise leak into the measured app and
 // its service (an OTLP endpoint alone adds a network round trip to every CLI exit).
-const env = {
+const env: NodeJS.ProcessEnv = {
   ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^(OPENCODE_|OTEL_|SENTRY_)/.test(key))),
   USERPROFILE: home,
   HOME: home,
@@ -125,9 +125,10 @@ const env = {
   XDG_CACHE_HOME: join(home, ".cache"),
   OPENCODE_DB: paths.db,
   OPENCODE_CONFIG_DIR: paths.config,
-  // Beta and prod builds check for updates on start; a closed proxy port fails that fast and offline.
-  ...(args.values.offline || appId !== "ai.opencode.desktop.dev" ? { HTTPS_PROXY: "http://127.0.0.1:9" } : {}),
 }
+
+// Beta and prod builds check for updates on start; a closed proxy port fails that fast and offline.
+if (args.values.offline || appId !== "ai.opencode.desktop.dev") env.HTTPS_PROXY = "http://127.0.0.1:9"
 
 const cdpPort = await freePort()
 
@@ -248,8 +249,11 @@ const phases = Object.fromEntries(
 
     for (const [name, from, to] of phaseOrder) {
       const deltas = own
-        .map((s) => (s.msSinceSpawn[to] ?? NaN) - (s.msSinceSpawn[from] ?? NaN))
-        .filter(Number.isFinite)
+        .flatMap((s) => {
+          const delta = (s.msSinceSpawn[to] ?? NaN) - (s.msSinceSpawn[from] ?? NaN)
+
+          return Number.isFinite(delta) ? [delta] : []
+        })
         .sort((a, b) => a - b)
 
       if (deltas.length) out[name] = deltas[Math.floor(deltas.length / 2)]
@@ -447,7 +451,7 @@ async function launch(build: { label: string; exe: string }, run: number): Promi
 
   if (rendererProfilePath) {
     const stopped = await cdp.send("Profiler.stop")
-    writeFileSync(rendererProfilePath, JSON.stringify(stopped.result.profile))
+    writeFileSync(rendererProfilePath, JSON.stringify(stopped.result!.profile))
     console.log("renderer profile:", rendererProfilePath)
   }
 
@@ -561,7 +565,15 @@ async function mainBootTiming() {
 }
 
 function defaultExe() {
-  const unpacked = join(packageDir, "dist", process.platform === "win32" ? "win-unpacked" : process.platform === "darwin" ? "mac" : "linux-unpacked")
+  const folder = (() => {
+    switch (process.platform) {
+      case "win32": return "win-unpacked"
+      case "darwin": return "mac"
+      default: return "linux-unpacked"
+    }
+  })()
+
+  const unpacked = join(packageDir, "dist", folder)
 
   if (!existsSync(unpacked)) return join(unpacked, "OpenCode Dev.exe")
   const candidate = readdirSync(unpacked).find((f) => (process.platform === "win32" ? f.endsWith(".exe") : f.endsWith(".app") || !f.includes(".")))
@@ -627,7 +639,7 @@ async function freePort() {
 async function targets(port: number) {
   return fetch(`http://127.0.0.1:${port}/json`)
     .then((r) => r.json() as Promise<{ type: string; url: string; webSocketDebuggerUrl: string }[]>)
-    .catch(() => [] as { type: string; url: string; webSocketDebuggerUrl: string }[])
+    .catch(() => [])
 }
 
 async function waitFor<T>(fn: () => Promise<T | undefined>, timeout: number) {
@@ -643,14 +655,20 @@ async function waitFor<T>(fn: () => Promise<T | undefined>, timeout: number) {
   throw new Error("Timed out waiting for the renderer debug target")
 }
 
+type CdpEnvelope = {
+  id?: number
+  method?: string
+  result?: { result?: { value?: unknown }; metrics?: { name: string; value: number }[]; profile?: unknown }
+}
+
 async function connect(url: string) {
   const ws = new WebSocket(url)
   await new Promise((r) => (ws.onopen = r))
   let id = 0
-  const pending = new Map<number, (v: any) => void>()
-  const events: any[] = []
+  const pending = new Map<number, (v: CdpEnvelope) => void>()
+  const events: CdpEnvelope[] = []
   ws.onmessage = (ev) => {
-    const msg = JSON.parse(String(ev.data))
+    const msg: CdpEnvelope = JSON.parse(String(ev.data))
 
     if (msg.method) events.push(msg)
 
@@ -663,7 +681,7 @@ async function connect(url: string) {
   return {
     events,
     send: (method: string, params: Record<string, unknown> = {}) =>
-      new Promise<any>((resolvePromise) => {
+      new Promise<CdpEnvelope>((resolvePromise) => {
         const n = ++id
         pending.set(n, resolvePromise)
         ws.send(JSON.stringify({ id: n, method, params }))
@@ -691,7 +709,7 @@ async function profileMain(spawnAt: number) {
   const result = await cdp.send("Profiler.stop")
   cdp.close()
 
-  return result.result.profile
+  return result.result!.profile
 }
 
 // Every timestamped line of the run's log directory, merged across the main log and the scoped logs
@@ -811,14 +829,13 @@ async function windowRaiser(): Promise<{ raise: (pid: number) => void; screen: (
       await exited
 
       const samples = lines
-        .filter((line) => line.startsWith("screen "))
-        .map((line) => line.split(" ").slice(1).map(Number) as [number, number])
+        .flatMap((line) => line.startsWith("screen ") ? [line.split(" ").slice(1).map(Number) as [number, number]] : [])
 
       if (process.env.BENCH_DEBUG) console.log(lines.filter((line) => line.startsWith("raised")).join(" "), `${samples.length} screen samples`)
       const first = samples[0]?.[1]
       const last = samples.at(-1)?.[1]
       const differs = (a: number, b: number) => Math.abs(a - b) > 16 * 16 * 12
-      const changed = samples.filter(([, sum]) => differs(sum, first)).map(([t]) => t)
+      const changed = samples.flatMap(([t, sum]) => differs(sum, first) ? [t] : [])
       // The last sample that still differed from the final content, i.e. when the window stopped changing.
       const settledIndex = samples.findLastIndex(([, sum]) => last !== undefined && differs(sum, last))
 
@@ -828,7 +845,7 @@ async function windowRaiser(): Promise<{ raise: (pid: number) => void; screen: (
 }
 
 async function processTree(root: number) {
-  const script =
+  const script: [string, string[]] =
     process.platform === "win32"
       ? [
           "powershell",
@@ -841,7 +858,7 @@ async function processTree(root: number) {
       : ["sh", ["-c", `ps -eo pid=,ppid=,rss=,comm= | awk -v r=${root} 'BEGIN{ids[r]=1} {p[$1]=$2; rss[$1]=$3; c[$1]=$4} END{for(k=0;k<8;k++) for(i in p) if(p[i] in ids) ids[i]=1; for(i in ids) if(i in rss) print i "|" c[i] "|" rss[i]*1024 "|"}'`]]
 
   const out = await new Promise<string>((done) => {
-    const child = spawn(script[0] as string, script[1] as string[], { stdio: ["ignore", "pipe", "ignore"] })
+    const child = spawn(script[0], script[1], { stdio: ["ignore", "pipe", "ignore"] })
     let text = ""
     child.stdout?.on("data", (chunk) => (text += chunk))
     child.on("close", () => done(text))
@@ -869,7 +886,11 @@ function summarize(list: Sample[]) {
   const out: Record<string, { median: number; min: number; max: number }> = {}
 
   for (const key of keys) {
-    const sorted = list.map((s) => values(s)[key]).filter((v): v is number => Number.isFinite(v)).sort((a, b) => a - b)
+    const sorted = list.flatMap((s) => {
+      const value = values(s)[key]
+
+      return value !== undefined && Number.isFinite(value) ? [value] : []
+    }).sort((a, b) => a - b)
 
     if (!sorted.length) continue
     out[key] = { median: sorted[Math.floor(sorted.length / 2)], min: sorted[0], max: sorted[sorted.length - 1] }

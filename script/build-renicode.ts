@@ -6,7 +6,7 @@ const env = {
   ...process.env,
   RENICODE_BUILD: "1",
   OPENCODE_CHANNEL: "dev",
-  OPENCODE_VERSION: "2.2.0-renicode.1",
+  OPENCODE_VERSION: "2.2.5-renicode.1",
   OPENCODE_CLI_DIST: path.join(root, "packages", "cli", "dist-renicode"),
 }
 

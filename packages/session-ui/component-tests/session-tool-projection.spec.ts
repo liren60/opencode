@@ -193,6 +193,7 @@ story("wraps execute details code, pads it evenly, and starts line numbers near 
     const number = root.querySelector("[data-line-number-content]")!
     const lines = [...root.querySelectorAll("[data-line]")].map((line) => line.getBoundingClientRect())
     const box = element.getBoundingClientRect()
+
     return {
       paddingTop: lines[0].top - box.top,
       paddingBottom: box.bottom - lines.at(-1)!.bottom,

@@ -466,12 +466,17 @@ test("replaces an incompatible owner that appears during startup", async () => {
     ensure({
       file: registration,
       version: "test",
-      command: fixture.command("delayed", "500"),
+      command: fixture.command("controlled"),
     }),
   )
-  await fixture.waitForFile(registration + ".starts")
+  const [contender] = await fixture.waitForStarts(1)
+  if (contender === undefined) throw new Error("Missing startup contender")
   const old = fixture.spawn("old")
   await fixture.waitForFile()
+  // Publish the old owner before allowing the candidate to register. A fixed delay can let
+  // the candidate win first, in which case ensure correctly returns without replacing old.
+  await old.exited
+  await fixture.release(contender, "ready")
   const endpoint = await starting
   const info = await Bun.file(registration).json()
   fixture.track(info.pid)

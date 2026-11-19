@@ -16,7 +16,7 @@ const session = (input: Partial<SessionInfo> & Pick<SessionInfo, "id"> & { direc
     ...input,
     location: { directory: input.directory },
     directory: undefined,
-  }) as SessionInfo
+  }) satisfies SessionInfo & { directory: undefined }
 
 type Project = {
   id: string
@@ -72,5 +72,9 @@ describe("layout workspace helpers", () => {
     expect(errorMessage({ data: { message: "boom" } }, "fallback")).toBe("boom")
     expect(errorMessage(new Error("broken"), "fallback")).toBe("broken")
     expect(errorMessage("unknown", "fallback")).toBe("fallback")
+    ;[12, { detail: "not a message" }].forEach((message) => {
+      expect(errorMessage({ data: { message } }, "fallback")).toBe("fallback")
+      expect(errorMessage(Object.assign(new Error("broken"), { data: { message } }), "fallback")).toBe("broken")
+    })
   })
 })
