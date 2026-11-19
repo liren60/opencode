@@ -1,6 +1,6 @@
 # OpenCode 上游更新同步评估
 
-<!-- wiki: {"kind":"discussion","workflow":"confirmed","revision":3,"change":"none","relations":["docs/plans/renicode-upstream-align.md","plans/project-center.md","docs/validation/sidebar-conversation-time.md","docs/validation/renicode-launcher-visibility.md"]} -->
+<!-- wiki: {"kind":"discussion","workflow":"confirmed","revision":4,"change":"none","relations":["docs/plans/renicode-upstream-align.md","plans/project-center.md","docs/validation/sidebar-conversation-time.md","docs/validation/renicode-launcher-visibility.md"]} -->
 
 ## 本次范围与授权
 
@@ -164,3 +164,107 @@
 - 用户随后要求「开始干」，并在范围选择中明确选择「先对齐 2.2 再迁移」。此前评估阶段未授权实施的记录保留为历史，不作为禁止本次获准工作。
 - 确认方向为上游对齐后保留/迁移定制，允许编制实施计划并开展隔离实施；计划见 `docs/plans/renicode-upstream-align.md`。
 - 不授权强制重启、覆盖用户工作或绕过现有 A/B 保护。后台/数据库具体升级和回退方案仍需核实与确认，不能仅凭本次方向确认就迁移实时数据。
+
+## 2026-10-29 warning 清理范围确认
+
+- 用户询问1452条既有warnings能否解决，助手提出两阶段：先处理低风险排版，再逐模块审查类型断言、类型宽化与输入边界；不关闭规则，不机械补SAFETY注释或断言，不以清零为由重构接口。盘点结果见 `docs/validation/renicode-align-upgrade.md`。
+- 用户回复“好的，按你的建议推进”，批准上述两阶段清理及相关验证，纳入同一对齐任务，不另建重复active主计划。全部1452条需要逐项审查；已确认误报应解释并最小化处理，不承诺通过削弱规则达到数字清零。
+- 当前2.2迁移验证继续。较大接口/架构调整、实时数据迁移、强制关闭/重启、删除数据或自动激活仍未获准；此次确认不新增提交/推送授权。
+
+## 2026-10-30 Windows 自脱离启动接口确认
+
+本机合成进程管道审计与真实guardian原生栈证实后台继承Electron GPU/Mojo端点，导致桌面退出等待。用户在说明新增CLI参数、保留固定端口/认证/代际与错误输出、不杀真实后台、不迁移实时数据、不自动激活后，选择“批准最小修复（推荐）”。允许实现自脱离入口及桌面接入，继续隔离回归、打包与安全检查；满足门禁才仅暂存A/B程序。同一主计划升为revision4，warning剩余942条与NSIS验收不取消，不新增提交/推送授权。
+
+## 2026-10-30 续作与主题输出契约确认
+
+- 本轮安全核验后，用户选择“先继续 warning 清理”；保持Defender拒绝部署，不新增厂商提交、恢复样本或排除/防护变更授权。仅元数据的本地复核材料见 `docs/validation/renicode-defender-review.md`。
+- 泛型draft codec不缩窄为composer文档。主题审查发现 `withAlpha` 实际输出rgba，而 `ResolvedTheme` 仅声明hex/var，不能通过安全注释掩盖。
+- 用户在明确“仅补齐ResolvedTheme现有rgba输出及withAlpha返回类型；输入ColorValue、JSON schema、颜色算法与CSS保持不变；重跑类型/回归/逐值对比”后，选择“批准最小类型修正（推荐）”。批准该最小公开输出类型修正，纳入主计划revision5，不批准任意主题重构、输入/持久化放宽或部署安全绕过。
+
+## 2026-10-30 真实激活、旧后台停止与缓存范围确认
+
+- 用户回复“现在安排激活”，随后“怎么停止，我不会，你帮我停止吧，你弄”，授权安排真实代际准备/激活并协助停止旧Renicode后台。只操作旧Renicode，不中断OpenCode宿主；使用现有注册监控触发自身shutdown，注册文件原地改名保留，不发送终止信号。停止日志与native退出实际证据见升级验证。
+- 真实profile链接检查发现1816个链接，全部在 `profile/cache/.bun/install/cache`，其余路径无链接。用户在明确“仅跳过这一个可重建Bun下载缓存，原缓存保留不动，其余数据完整复制与全部数据库/哈希门禁，后续可能重新下载依赖”后选择“跳过下载缓存（推荐）”。批准该明确排除清单和必要迁移参数，不批准任意链接跟随/缓存省略或原数据删除。同一主计划升revision6。
+
+## 2026-10-30 warning接续与本轮正常关闭许可
+
+- 用户要求“继续处理警告”，接续revision6已有分批清理，不新增类型/输入/架构放宽或提交推送授权。
+- 第五批类型-only检查通过并启动官方候选构建后，用户表示“你可以主动关闭，我现在还没使用”。允许为本次兼容更新主动正常关闭Renicode；候选资源/安全/运行门禁通过后，按既有A/B机制暂存并在正常退出后激活。仅限Renicode，不触碰当前OpenCode宿主；不把该许可解释为绕过验收、强制终止、停止共享后台或迁移数据的必要性。
+
+## 2026-10-30 后续清理与打包节奏
+
+用户在了解每小批打包的开销后提出“不能一次清理完再打包吗”。后续采用全部剩余warning完成后统一打包/A-B交付，而非小批次重复部署；逐模块审查、每批针对性验证、最终完整验收与安全/完整性门禁保留。当前已激活版本不因源码清理反复关闭；不将该执行节奏视为关闭规则、改变输入/架构或取消最终部署的授权。
+
+## 2026-10-30 合理解析边界警告保留确认
+
+- 用户要求“继续一次把警告处理完再打包”，接续上述统一交付节奏。
+- 核查drafts与storage codec后，说明通用encode/decode/rename必须保留未知字段，unknown输入/输出属于该解析边界的真实职责；不能缩窄为composer形状或换写法隐藏诊断。提出逐处审查后最小局部例外、保留合理警告、先讨论契约重构三种选择。
+- 用户明确选择“**不加例外，保留警告**”。批准对经实际审查证实必要的通用解析边界保留合理诊断并列明依据；不添加局部例外、不修改全局规则、不机械补SAFETY注释。其他可修正的断言/类型/解析问题仍实质修复，剩余未审条目不自动归类为合理。
+- 同一主计划revision7调整warning验收：全部条目须完成处理或有依据的合理保留清单，不要求牺牲通用契约获得数字0。最终完整检查、相关回归、打包、安全/完整性与A/B门禁不变，不新增提交/推送或真实进程操作授权。
+
+## 2026-11-02 冷加载测试单项期限确认
+
+本轮接续时两项原失败经无并行负载重复仍首次超过5秒：locale一次导入126份真实App/UI字典，plugin首次definition加载16个真实共享模块。用户在明确仅这两项使用30秒单项期限、注明加载工作量、保留全部断言和完整回归、不改整套期限/产品行为/规则、不添加重试后选择“批准单项期限（推荐）”。纳入同一主计划revision8；不是通过预热隐藏冷加载，不取消其他未审warning或最终统一打包、安全与A/B门禁。
+
+## 2026-11-02 formatter最小解析修正确认
+
+外部真实owner探针复现 `{ name: "ConfigInvalidError", data: { message: 12 } }` 与缺少providerID的model错误均抛TypeError。仅检查data是对象不能证明内部字段合法，不将其余诊断自动列为合理。用户在明确仅formatter内完整解析使用字段、畸形config/model输入走已有message/fallback、不改变合法文案、Protocol/HttpApi或持久化契约后选择“批准最小解析修正（推荐）”。主计划revision9批准此具体行为修正及扩充原owner测试，其他未审项、安全与统一打包门禁保持。
+
+## 2026-11-02 加速清理与交付路线（待选择）
+
+用户要求评估如何快速处理剩余警告并尽快打包更新。对最新冻结清单716条重新按路径分组：生产代码候选338条/91文件，测试与E2E310条/82文件，Storybook/fixtures33条/8文件，脚本与工具35条/5文件，共186文件。其中普通断言319条、链式断言29条；数量不等于已证实缺陷或合理保留。路径分组仅用于工作分配，不证明文件一定不参与构建。
+
+- 建议路线：用户允许后启动三个明确分工的子代理并行审查/处理，严格分配生产文件与test/story/tooling文件避免相互编辑；主助手统一协调需先采集的生产benchmark、重大行为/契约审批与最终验证。各组只运行针对性lint/官方类型与必要owner回归，不同时反复跑全仓suite、不由各组单独打包；全部条目修正或有据保留后主助手统一完整验收、构建/冻结候选/安全与ASAR完整性核验、隔离运行及A/B暂存。此路线保持revision9范围，尚未获并行子代理许可、尚未启动。
+- 可选优先交付路线：生产风险优先完成审查及必要修复，经过完整产品/安全/完整性/运行门禁后交付一次；未完成的非生产规范清理另列后续，不能将378条自动当合理或声称全仓工作完成。这会调整此前“全数处理再统一打包”的交付门槛，须用户明确批准并记录主计划修订；当前尚未生效。
+- 不论路线，不关闭规则、添加机械豁免、跳过测试/安全、直接复用异常dist、关闭或重启当前程序/后台、迁移实时profile或自动提交推送。A/B只暂存非活动槽，等待当前桌面正常退出；较大行为/接口变更仍单独确认。不承诺未经执行证实的耗时或并行倍速。
+
+用户随后明确选择“**三路并行全量（推荐）**”，允许启动三个子代理按互不重叠文件分工并行处理，主助手统一验收和打包。优先交付/延期非生产清理路线未选择、不生效；主计划revision9范围及全数处理门槛保持。所有生产benchmark、行为/契约审批与最终安全/A-B边界保持。
+
+## 2026-11-02 并行发现的三处最小解释边界授权
+
+并行审查指出helpers.errorMessage会让numeric/object message直接作为错误描述，主题mode将任意存储字符串断言为ColorScheme，窗口恢复把未知maximized/fullScreen字段按truthiness使用。主助手明确说明后二者仍是待实际复现的候选，提出只对复现问题补字段检查，不改合法值/其他字段、既有回退和API；用户选择“**批准三处最小修复（推荐）**”。批准范围为errorMessage仅接受string、非法主题mode回system、非boolean窗口标记单独忽略；保留合法legacy局部窗口对象/额外字段，不丢弃整个存储文档，未复现不改，不添加测试接缝或迁移真实profile。主计划revision10记录同一任务的具体授权，三路全量完成后一次性交付仍保持。
+
+## 2026-11-02 最终GUI短查询夹具修正（待确认）
+
+全部warning原项已逐项处理/有据保留，最终App9个keeper187/188；唯一Settings pointer/keyboard综合case用十个z并期待无省略号全文。冻结旧production fixture也在同一assertion失败。外部原keeper副本只插入真实布局测量、原assertions不改：当前status200px，两侧各18px padding，有效164px；实际完整文案宽170.609375px，font为Inter13px/440。故此输入已是须省略的长查询，不能据这条旧期待要求产品溢出、改布局或放宽assertion为regex。
+
+提出最小测试输入修正：仅把综合交互case的无结果query从十个z改成真正短的四个z，同时仍精确断言对应完整文案；全部keyboard/pointer/clear/find/narrow流程保持，原专属长query/缩放/关闭引号/省略号keepers不改。不更改产品、viewport、字体、CSS、规则、测试期限或retry，不延期其他验收项。此为真实测量后对原交互夹具的澄清，尚未获选择/未实施；若用户不同意，保留失败并不提前打包激活。
+
+用户随后选择“**批准最小夹具修正（推荐）**”，明确批准仅上述两处input/精确expected文案同步修正，不修改原长查询/省略号keeper或产品布局，不跳过其余失败。此具体授权纳入同一主计划revision11；待实际补跑验证，不把批准当作通过。
+
+## 2026-11-03 跟进官网最新版本（待确认基线）
+
+- 用户询问“那你能同步最新的版本吗？”。本轮先只读核实发布渠道与两个工作树，不将询问解释为允许覆盖未提交工作、关闭程序或移动既有固定基线。
+- 官网V2桌面稳定更新源 `https://opencode.ai/update/api/latest/desktop/opencode/latest.yml` 实际HTTP200，声明版本 **2.2.5**、releaseDate `2026-10-30T23:06:22.000Z`，Windows x64产物指向 `https://opencode.ai/files/bin/2.2.5/opencode-desktop-win-x64.exe`。GitHub通用latest API返回V1的v1.19.5，不作为V2基线。
+- `git ls-remote upstream` 核实 `refs/tags/v2.2.5` 为 `9bbb8ce18c80f099e0e448775f59d965ead40a21`，dev为 `1bf08ae46a91f7793c756e4ee521e37b6b554064`。尚未下载标签对象或核实其是否需解引用，不声称已确定最终源码commit或完成差异评估。
+- 原工作树HEAD `d4bcca712c238e69c20e05fe7f51e7724313975f` 有未提交流程文档；隔离align-renicode HEAD `2ce0d3d9a53c4c5a93bcde1b0fdc23f9e3c76520` 有大量未提交warning清理及测试/工具改动。现有revision11固定上游为 `86ce19d96eccbfb95af3ff3189c7071575f94339`，最终GUI/benchmark/打包交付尚未全部收齐；必须保留这些工作和失败历史，不重置、覆盖或删除。
+- 推荐确认：将既有计划的固定上游改为本次核实的官网V2稳定2.2.5（不追随滚动dev），先保护并承接当前未提交改动，评估/合并增量，保留品牌、Midea、插件、独立profile与A/B保护，完成旧未完及新受影响验收后统一构建/安全核验/隔离运行并暂存非活动槽。后台/数据库变化先验证；实际数据迁移或需停止后台时按已有边界另行安排，不自动关闭或重启运行中程序。
+- 当前仅记录待确认变更，不修改主计划生效基线、应用源码或槽位，不启动代理、构建、部署、迁移或提交推送。
+
+### 同步稳定版确认
+
+用户随后明确选择“**同步稳定版 2.2.5（推荐）**”，批准修改既有计划基线、保留全部定制与在途改动，完成同步及原未完/新增受影响验收后统一构建、安全核验、隔离运行与A/B暂存。固定标签已下载并解引用为commit `9bbb8ce18c80f099e0e448775f59d965ead40a21`；不追随dev，不新增提交/推送、强制关闭/重启、未经验证实时迁移或防护变更许可。原两工作树均有未提交工作，实施先做逐文件哈希保护，在新的隔离工作树承接，主计划仍只有一份。
+
+### Client 单项恢复预算确认
+
+- 用户明确选择“**批准单项调整（推荐）**”：仅 `recovers when an unresponsive contender is evicted after a prior failure` 的内部总预算由3000ms改为10000ms、Bun单项期限由5000ms改为15000ms。保留全部恢复/identity断言、requestTimeout100ms、其他case和产品预算，不加重试。此case证明三进程恢复而非3秒deadline；外部诊断已记录Windows原生spawn成本，原完整252pass/4skip/1fail/1error及局部5/5失败历史不删除。
+- 已实施在测试fixture及单一调用者；批准后同一owner连续10次 **10pass/0fail、20assertions、28.10s**，证据 `Temp/opencode/renicode-sync-225-client-contender-approved.log`。受影响suite与官方tsc仍须收齐；GUI两项失败及性能/代际/安全/统一构建/A-B门禁不取消，不提前放行。
+
+### Review / Server 两处最小夹具确认（接续）
+
+- 用户明确选择“**批准两处最小修正（推荐）**”。Review只在原图表初次boundingBox前等待既有面板飞行inline paint清空；Server只把PowerShell5.1不接受的POSIX命令换成真实Bun子脚本，向同一marker追加一行x并exit1。全部原精确结果断言、期限、产品布局及调度行为保持，不加retry、不丢失败历史。
+- 已实施在正式 `packages/app/e2e/regression/review.spec.ts` 与 `packages/server/test/schedule.test.ts`，没有新增生产接口/信号或修改Session代码。正式owner各10次、完整Review/Server suite及canonical/官方检查正在运行；结果待完成通知。原六keeper162/2、Server107/8/1、慢动作Review0/3与全祖先0/1保留，Temp诊断成功不能替代正式验收。授权不包含提前打包/交付放行、实时迁移、强关重启或新增提交推送。
+
+### Server 六项模型目录夹具确认（接续）
+
+- 获批listener最小解绑修正验收实收：修前资源断言0/1、修后原owner10/0、三callback各10次30/0、完整Server108/8/0且两回归日志同类warning0；Core9/0、Core/Server官方tsc、canonical340/0通过。正式测试只承接原owner资源断言，无新重复case；不将未独立测试的中断清理宣称为已覆盖。旧失败及原20/2警告保留，本项收齐不是性能/迁移/构建/安全/交付整体放行。
+
+- 用户随后明确选择“**批准最小解绑修正（推荐）**”：仅修openai.ts的bind在成功/错误/中断时解绑自身error/listening回调，并把修前已失败的资源断言承接到现有both-ports owner；不提高listener上限，不改端口、重试次数、200ms间隔、文案、helper2秒/case10秒，不加retry或新增重复keeper。已实施这两处最小修改，原owner连续10次正在执行；后续callback/full Server、Core/Server官方tsc/canonical须实收。原负向证据与交付/实时数据/真实进程边界保持。
+
+- 接续正式实收六owner各10次60/0、完整Server108/8/0、Server官方tsc/canonical通过，但真实OAuth绑定重试分别产生20/2条listener warnings。Temp扩展原both-ports资源断言0/1证明失败，trace指向openai.ts:152；拟议仅bind自身error/listening清理，保持全部端口/次数/间隔/文案/期限。此产品修正尚未获额外确认或实施，不能将限定六case的夹具授权扩张为listener产品授权；其余验收与交付边界保持。
+
+- 用户明确选择“**批准限定六 case（推荐）**”：只给artifact1、OAuth固定callback端口3、Session instance1、双Server leader1各自的models选项加既有snapshot:false，减少未被这六case验证的捆绑模型目录工作量。真实内置插件、OAuth监听/重试、Agent权限规则、artifact本地/plugin provider、双Server同DB竞争及全部原断言保持；原helper2秒、默认5秒及both-ports既有10秒不改，不加retry。
+- 仅在三个正式owner文件的六case内实施，没有改fetch共享options或startServer共享fixture、其他完整目录测试、产品默认值/guard/调度或任何公共API。Temp18/0只是候选支持证据，不代表消除所有负载失败；正式六case各连续10次及受影响回归/check仍必须实际收齐，失败仍阻塞。原Server leader5/5与完整107/8/1、103/8/5保留，不扩大提交推送、实时数据迁移、防护变更、强关重启或提前交付/A-B权限。
+# 2026-11-04 限定追加授权：窄屏终端重命名
+
+用户选择“允许最小修复（推荐）”：仅让显式Enter提交不受初始化blur帧门禁限制，保留blur防护、Escape取消、原keeper断言与期限；同一case连续验证10次及完整终端套件。前置完整keeper20/1失败保留；不授权布局恢复、sleep/重试或其他产品行为变更。
